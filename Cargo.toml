@@ -1,0 +1,6 @@
+[package]
+name = "arbitrary"
+version = "0.1.0"
+authors = ["Simonas Kazlauskas <git@kazlauskas.me>"]
+
+[dependencies]
