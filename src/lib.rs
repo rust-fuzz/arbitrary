@@ -433,12 +433,15 @@ pub struct RingBuffer<'a>{
 }
 
 impl<'a> RingBuffer<'a> {
-    pub fn new(buffer: &'a [u8], max_len: usize) -> RingBuffer<'a> {
-        RingBuffer {
+    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<RingBuffer<'a>, &'static str> {
+        if buffer.len() == 0 {
+            return Err("buffer must not be empty")
+        }
+        Ok(RingBuffer {
             buffer: buffer,
             off: 0,
             max_len: max_len
-        }
+        })
     }
 }
 
