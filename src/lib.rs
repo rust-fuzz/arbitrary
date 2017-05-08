@@ -426,6 +426,10 @@ impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
 }
 
 
+/// A source of unstructured data which returns the same data over and over again
+///
+/// A simplest provider of unstructured data possible. Interprets the data as a ring buffer,
+/// thus allowing for infinite amount of not-very-random data.
 pub struct RingBuffer<'a>{
     buffer: &'a [u8],
     off: usize,
@@ -462,6 +466,7 @@ impl<'a> Unstructured for RingBuffer<'a> {
     }
 
 }
+
 
 #[test]
 fn ring_buffer_fill_buffer() {

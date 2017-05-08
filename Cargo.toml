@@ -1,6 +1,10 @@
 [package]
 name = "arbitrary"
 version = "0.1.0"
-authors = ["Simonas Kazlauskas <git@kazlauskas.me>"]
+authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/nagisa/rust_arbitrary/"
+documentation = "https://docs.rs/arbitrary/"
+description = "The Arbitrary trait for generating structured data from unstructured data"
 
 [dependencies]
