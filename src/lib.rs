@@ -1,5 +1,3 @@
-#![feature(float_bits_conv)]
-
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
 use std::collections::{BinaryHeap, BTreeSet, BTreeMap, HashMap, HashSet, LinkedList, VecDeque};
