@@ -1,18 +1,43 @@
+//! TODO(blt)
+#![deny(warnings)]
+#![deny(bad_style)]
+#![deny(missing_docs)]
+#![deny(future_incompatible)]
+#![deny(nonstandard_style)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![deny(unused)]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy))]
+// #![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_perf))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_style))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_complexity))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_correctness))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_cargo))]
+// We allow 'cast_possible_wrap' and 'cast_possible_truncation' as we'll use the
+// Arbitrary definitions of u8 et al to generate the signed variants and in so
+// doing trip the cast warning.
+#![cfg_attr(feature = "cargo-clippy", allow(cast_possible_wrap))]
+#![cfg_attr(feature = "cargo-clippy", allow(cast_possible_truncation))]
+// We allow 'implicit_hasher' since support for a generalized hasher will
+// require setting a 'static lifetime. Tricky, that.
+#![cfg_attr(feature = "cargo-clippy", allow(implicit_hasher))]
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
-use std::collections::{BinaryHeap, BTreeSet, BTreeMap, HashMap, HashSet, LinkedList, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
 use std::iter;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicIsize};
 use std::time::Duration;
 
 /// Unstructured data from which structured `Arbitrary` data shall be generated.
 ///
 /// This could be a random number generator, a static ring buffer of bytes or some such.
 pub trait Unstructured {
+    /// TODO(blt)
     type Error;
     /// Fill a `buffer` with bytes, forming the unstructured data from which `Arbitrary` structured
     /// data shall be generated.
@@ -28,12 +53,13 @@ pub trait Unstructured {
     }
 }
 
+/// TODO(blt)
 pub trait Arbitrary: Sized + 'static {
     /// Generate arbitrary structured data from unstructured data.
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error>;
 
     /// Generate derived values which are “smaller” than the original one.
-    fn shrink(&self) -> Box<Iterator<Item=Self>> {
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         Box::new(iter::empty())
     }
 }
@@ -60,7 +86,7 @@ impl Arbitrary for u8 {
 
 impl Arbitrary for i8 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u8 as Arbitrary>::arbitrary(u)? as i8)
+        Ok(<u8 as Arbitrary>::arbitrary(u)? as Self)
     }
 }
 
@@ -68,13 +94,13 @@ impl Arbitrary for u16 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let mut x = [0, 0];
         u.fill_buffer(&mut x)?;
-        Ok(x[0] as u16 | (x[1] as u16) << 8)
+        Ok(Self::from(x[0]) | Self::from(x[1]) << 8)
     }
 }
 
 impl Arbitrary for i16 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u16 as Arbitrary>::arbitrary(u)? as i16)
+        Ok(<u16 as Arbitrary>::arbitrary(u)? as Self)
     }
 }
 
@@ -82,13 +108,16 @@ impl Arbitrary for u32 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let mut x = [0, 0, 0, 0];
         u.fill_buffer(&mut x)?;
-        Ok(x[0] as u32 | (x[1] as u32) << 8 | (x[2] as u32) << 16 | (x[3] as u32) << 24)
+        Ok(Self::from(x[0])
+            | Self::from(x[1]) << 8
+            | Self::from(x[2]) << 16
+            | Self::from(x[3]) << 24)
     }
 }
 
 impl Arbitrary for i32 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u32 as Arbitrary>::arbitrary(u)? as i32)
+        Ok(<u32 as Arbitrary>::arbitrary(u)? as Self)
     }
 }
 
@@ -96,43 +125,49 @@ impl Arbitrary for u64 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let mut x = [0, 0, 0, 0, 0, 0, 0, 0];
         u.fill_buffer(&mut x)?;
-        Ok(x[0] as u64 | (x[1] as u64) << 8 | (x[2] as u64) << 16 | (x[3] as u64) << 24
-                       | (x[4] as u64) << 32 | (x[5] as u64) << 40 | (x[6] as u64) << 48
-                       | (x[7] as u64) << 56)
+        Ok(Self::from(x[0])
+            | Self::from(x[1]) << 8
+            | Self::from(x[2]) << 16
+            | Self::from(x[3]) << 24
+            | Self::from(x[4]) << 32
+            | Self::from(x[5]) << 40
+            | Self::from(x[6]) << 48
+            | Self::from(x[7]) << 56)
     }
 }
 
 impl Arbitrary for i64 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u64 as Arbitrary>::arbitrary(u)? as i64)
+        Ok(<u64 as Arbitrary>::arbitrary(u)? as Self)
     }
 }
 
 impl Arbitrary for usize {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(match ::std::mem::size_of::<usize>() {
-            2 => <u16 as Arbitrary>::arbitrary(u)? as usize,
-            4 => <u32 as Arbitrary>::arbitrary(u)? as usize,
-            _ => <u64 as Arbitrary>::arbitrary(u)? as usize,
+        Ok(match ::std::mem::size_of::<Self>() {
+            2 => <u16 as Arbitrary>::arbitrary(u)? as Self,
+            4 => <u32 as Arbitrary>::arbitrary(u)? as Self,
+            8 => <u64 as Arbitrary>::arbitrary(u)? as Self,
+            _ => unreachable!(), // welcome, 128 bit machine users
         })
     }
 }
 
 impl Arbitrary for isize {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<usize as Arbitrary>::arbitrary(u)? as isize)
+        Ok(<usize as Arbitrary>::arbitrary(u)? as Self)
     }
 }
 
 impl Arbitrary for f32 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(f32::from_bits(<u32 as Arbitrary>::arbitrary(u)?))
+        Ok(Self::from_bits(<u32 as Arbitrary>::arbitrary(u)?))
     }
 }
 
 impl Arbitrary for f64 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(f64::from_bits(<u64 as Arbitrary>::arbitrary(u)?))
+        Ok(Self::from_bits(<u64 as Arbitrary>::arbitrary(u)?))
     }
 }
 
@@ -147,9 +182,10 @@ impl Arbitrary for char {
             //
             // Note, of course this does not result in unbiased data, but it is not really
             // necessary for either quickcheck or fuzzing.
-            match ::std::char::from_u32(c) {
-                Some(c) => return Ok(c),
-                None => { c -= 1; }
+            if let Some(c) = ::std::char::from_u32(c) {
+                return Ok(c);
+            } else {
+                c -= 1;
             }
         }
     }
@@ -157,26 +193,28 @@ impl Arbitrary for char {
 
 impl Arbitrary for AtomicBool {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(AtomicBool::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl Arbitrary for AtomicIsize {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(AtomicIsize::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl Arbitrary for AtomicUsize {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(AtomicUsize::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl Arbitrary for Duration {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(Duration::new(Arbitrary::arbitrary(u)?,
-                         <u32 as Arbitrary>::arbitrary(u)? % 1_000_000_000))
+        Ok(Self::new(
+            Arbitrary::arbitrary(u)?,
+            <u32 as Arbitrary>::arbitrary(u)? % 1_000_000_000,
+        ))
     }
 }
 
@@ -189,9 +227,9 @@ impl<A: Arbitrary> Arbitrary for Option<A> {
         })
     }
 
-    fn shrink(&self) -> Box<Iterator<Item=Self>> {
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         if let Some(ref a) = *self {
-            Box::new(iter::once(None).chain(a.shrink().map(|x| Some(x))))
+            Box::new(iter::once(None).chain(a.shrink().map(Some)))
         } else {
             Box::new(iter::empty())
         }
@@ -207,10 +245,10 @@ impl<A: Arbitrary, B: Arbitrary> Arbitrary for Result<A, B> {
         })
     }
 
-    fn shrink(&self) -> Box<Iterator<Item=Self>> {
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         match *self {
-            Ok(ref a) => Box::new(a.shrink().map(|x| Ok(x))),
-            Err(ref a) => Box::new(a.shrink().map(|x| Err(x))),
+            Ok(ref a) => Box::new(a.shrink().map(Ok)),
+            Err(ref a) => Box::new(a.shrink().map(Err)),
         }
     }
 }
@@ -303,7 +341,9 @@ impl<A: Arbitrary> Arbitrary for VecDeque<A> {
 }
 
 impl<A> Arbitrary for Cow<'static, A>
-where A: ToOwned + ?Sized, <A as ToOwned>::Owned: Arbitrary
+where
+    A: ToOwned + ?Sized,
+    <A as ToOwned>::Owned: Arbitrary,
 {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Cow::Owned)
@@ -313,7 +353,9 @@ where A: ToOwned + ?Sized, <A as ToOwned>::Owned: Arbitrary
 impl Arbitrary for String {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let size = u.container_size()?;
-        (0..size).map(|_| <char as Arbitrary>::arbitrary(u)).collect()
+        (0..size)
+            .map(|_| <char as Arbitrary>::arbitrary(u))
+            .collect()
     }
 }
 
@@ -321,7 +363,7 @@ impl Arbitrary for CString {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         <Vec<u8> as Arbitrary>::arbitrary(u).map(|mut x| {
             x.retain(|&c| c != 0);
-            CString::new(x).unwrap()
+            Self::new(x).unwrap()
         })
     }
 }
@@ -340,7 +382,7 @@ impl Arbitrary for PathBuf {
 
 impl<A: Arbitrary> Arbitrary for Box<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(Box::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
@@ -371,37 +413,37 @@ impl Arbitrary for Box<str> {
 
 impl<A: Arbitrary> Arbitrary for Arc<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(Arc::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl<A: Arbitrary> Arbitrary for Rc<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(Rc::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl<A: Arbitrary> Arbitrary for Cell<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(Cell::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl<A: Arbitrary> Arbitrary for RefCell<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(RefCell::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(UnsafeCell::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
 impl<A: Arbitrary> Arbitrary for Mutex<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Arbitrary::arbitrary(u).map(Mutex::new)
+        Arbitrary::arbitrary(u).map(Self::new)
     }
 }
 
@@ -423,26 +465,26 @@ impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
     }
 }
 
-
 /// A source of unstructured data which returns the same data over and over again
 ///
 /// A simplest provider of unstructured data possible. Interprets the data as a ring buffer,
 /// thus allowing for infinite amount of not-very-random data.
-pub struct RingBuffer<'a>{
+pub struct RingBuffer<'a> {
     buffer: &'a [u8],
     off: usize,
-    max_len: usize
+    max_len: usize,
 }
 
 impl<'a> RingBuffer<'a> {
+    /// TODO(blt)
     pub fn new(buffer: &'a [u8], max_len: usize) -> Result<RingBuffer<'a>, &'static str> {
-        if buffer.len() == 0 {
-            return Err("buffer must not be empty")
+        if buffer.is_empty() {
+            return Err("buffer must not be empty");
         }
         Ok(RingBuffer {
-            buffer: buffer,
+            buffer,
             off: 0,
-            max_len: max_len
+            max_len,
         })
     }
 }
@@ -460,30 +502,30 @@ impl<'a> Unstructured for RingBuffer<'a> {
     }
 
     fn container_size(&mut self) -> Result<usize, Self::Error> {
-        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len )
+        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
+    }
+}
+
+mod test {
+    #[test]
+    fn ring_buffer_fill_buffer() {
+        let x = [1, 2, 3, 4];
+        let mut rb = RingBuffer::new(&x, 2);
+        let mut z = [0; 10];
+        rb.fill_buffer(&mut z).unwrap();
+        assert_eq!(z, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
+        rb.fill_buffer(&mut z).unwrap();
+        assert_eq!(z, [3, 4, 1, 2, 3, 4, 1, 2, 3, 4]);
     }
 
-}
-
-
-#[test]
-fn ring_buffer_fill_buffer() {
-    let x = [1, 2, 3, 4];
-    let mut rb = RingBuffer::new(&x, 2);
-    let mut z = [0; 10];
-    rb.fill_buffer(&mut z).unwrap();
-    assert_eq!(z, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
-    rb.fill_buffer(&mut z).unwrap();
-    assert_eq!(z, [3, 4, 1, 2, 3, 4, 1, 2, 3, 4]);
-}
-
-#[test]
-fn ring_buffer_container_size() {
-    let x = [1, 2, 3, 4, 5];
-    let mut rb = RingBuffer::new(&x, 11);
-    assert_eq!(rb.container_size().unwrap(), 9);
-    assert_eq!(rb.container_size().unwrap(), 1);
-    assert_eq!(rb.container_size().unwrap(), 2);
-    assert_eq!(rb.container_size().unwrap(), 6);
-    assert_eq!(rb.container_size().unwrap(), 1);
+    #[test]
+    fn ring_buffer_container_size() {
+        let x = [1, 2, 3, 4, 5];
+        let mut rb = RingBuffer::new(&x, 11);
+        assert_eq!(rb.container_size().unwrap(), 9);
+        assert_eq!(rb.container_size().unwrap(), 1);
+        assert_eq!(rb.container_size().unwrap(), 2);
+        assert_eq!(rb.container_size().unwrap(), 6);
+        assert_eq!(rb.container_size().unwrap(), 1);
+    }
 }
