@@ -492,11 +492,14 @@ impl<'a> Unstructured for RingBuffer<'a> {
     }
 }
 
+#[cfg(test)]
 mod test {
+    use super::{RingBuffer, Unstructured};
+
     #[test]
     fn ring_buffer_fill_buffer() {
         let x = [1, 2, 3, 4];
-        let mut rb = RingBuffer::new(&x, 2);
+        let mut rb = RingBuffer::new(&x, 2).unwrap();
         let mut z = [0; 10];
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
@@ -507,7 +510,7 @@ mod test {
     #[test]
     fn ring_buffer_container_size() {
         let x = [1, 2, 3, 4, 5];
-        let mut rb = RingBuffer::new(&x, 11);
+        let mut rb = RingBuffer::new(&x, 11).unwrap();
         assert_eq!(rb.container_size().unwrap(), 9);
         assert_eq!(rb.container_size().unwrap(), 1);
         assert_eq!(rb.container_size().unwrap(), 2);
