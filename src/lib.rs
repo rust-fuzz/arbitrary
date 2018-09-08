@@ -39,8 +39,8 @@ use std::time::Duration;
 pub trait Unstructured {
     /// TODO(blt)
     type Error;
-    /// Fill a `buffer` with bytes, forming the unstructured data from which `Arbitrary` structured
-    /// data shall be generated.
+    /// Fill a `buffer` with bytes, forming the unstructured data from which
+    /// `Arbitrary` structured data shall be generated.
     ///
     /// This operation is fallible to allow implementations based on e.g. I/O.
     fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>;
@@ -465,25 +465,90 @@ impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
     }
 }
 
+/// An enumeration of buffer creation errors
+#[derive(Debug, Clone, Copy)]
+pub enum BufferError {
+    /// The input buffer is empty, causing construction of some buffer types to
+    /// fail
+    EmptyInput,
+}
+
+/// A source of unstructured data with a finite size
+///
+/// This buffer is a finite source of unstructured data. Once the data is
+/// exhausted it stays exhausted.
+pub struct FiniteBuffer<'a> {
+    buffer: &'a [u8],
+    offset: usize,
+    max_len: usize,
+}
+
+impl<'a> FiniteBuffer<'a> {
+    /// Create a new FiniteBuffer
+    ///
+    /// If the passed `buffer` is shorter than max_len the total number of bytes
+    /// will be the bytes available in `buffer`. If `buffer` is longer than
+    /// `max_len` the buffer will be trimmed.
+    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self, BufferError> {
+        let buf: &'a [u8] = if buffer.len() > max_len {
+            &buffer[..max_len]
+        } else {
+            // This branch is hit if buffer is shorter than max_len. We might
+            // choose to make this an error condition instead of, potentially,
+            // surprising folks with less bytes.
+            buffer
+        };
+
+        Ok(FiniteBuffer {
+            buffer: buf,
+            offset: 0,
+            max_len: buf.len(),
+        })
+    }
+}
+
+impl<'a> Unstructured for FiniteBuffer<'a> {
+    type Error = ();
+
+    fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
+        if (self.max_len - self.offset) >= buffer.len() {
+            let max = self.offset + buffer.len();
+            for (i, idx) in (self.offset..max).enumerate() {
+                buffer[i] = self.buffer[idx];
+            }
+            self.offset = max;
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    // NOTE(blt) I'm not sure if this is the right definition. I don't
+    // understand the purpose of container_size.
+    fn container_size(&mut self) -> Result<usize, Self::Error> {
+        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
+    }
+}
+
 /// A source of unstructured data which returns the same data over and over again
 ///
-/// A simplest provider of unstructured data possible. Interprets the data as a ring buffer,
-/// thus allowing for infinite amount of not-very-random data.
+/// This buffer acts as a ring buffer over the source of unstructured data,
+/// allowing for an infinite amount of not-very-random data.
 pub struct RingBuffer<'a> {
     buffer: &'a [u8],
-    off: usize,
+    offset: usize,
     max_len: usize,
 }
 
 impl<'a> RingBuffer<'a> {
     /// TODO(blt)
-    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<RingBuffer<'a>, &'static str> {
+    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self, BufferError> {
         if buffer.is_empty() {
-            return Err("buffer must not be empty");
+            return Err(BufferError::EmptyInput);
         }
         Ok(RingBuffer {
             buffer,
-            off: 0,
+            offset: 0,
             max_len,
         })
     }
@@ -492,9 +557,9 @@ impl<'a> RingBuffer<'a> {
 impl<'a> Unstructured for RingBuffer<'a> {
     type Error = ();
     fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        let b = [&self.buffer[self.off..], &self.buffer[..self.off]];
+        let b = [&self.buffer[self.offset..], &self.buffer[..self.offset]];
         let it = ::std::iter::repeat(&b[..]).flat_map(|x| x).flat_map(|&x| x);
-        self.off = (self.off + buffer.len()) % self.buffer.len();
+        self.offset = (self.offset + buffer.len()) % self.buffer.len();
         for (d, f) in buffer.iter_mut().zip(it) {
             *d = *f;
         }
@@ -508,7 +573,19 @@ impl<'a> Unstructured for RingBuffer<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::{RingBuffer, Unstructured};
+    use super::*;
+
+    #[test]
+    fn finite_buffer_fill_buffer() {
+        let x = [1, 2, 3, 4];
+        let mut rb = FiniteBuffer::new(&x, 10).unwrap();
+        let mut z = [0; 2];
+        rb.fill_buffer(&mut z).unwrap();
+        assert_eq!(z, [1, 2]);
+        rb.fill_buffer(&mut z).unwrap();
+        assert_eq!(z, [3, 4]);
+        assert!(rb.fill_buffer(&mut z).is_err());
+    }
 
     #[test]
     fn ring_buffer_fill_buffer() {
