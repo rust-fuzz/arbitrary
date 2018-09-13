@@ -7,21 +7,7 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy))]
-// #![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_perf))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_style))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_complexity))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_correctness))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_cargo))]
-// We allow 'cast_possible_wrap' and 'cast_possible_truncation' as we'll use the
-// Arbitrary definitions of u8 et al to generate the signed variants and in so
-// doing trip the cast warning.
-#![cfg_attr(feature = "cargo-clippy", allow(cast_possible_wrap))]
-#![cfg_attr(feature = "cargo-clippy", allow(cast_possible_truncation))]
-// We allow 'implicit_hasher' since support for a generalized hasher will
-// require setting a 'static lifetime. Tricky, that.
-#![cfg_attr(feature = "cargo-clippy", allow(implicit_hasher))]
+
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
