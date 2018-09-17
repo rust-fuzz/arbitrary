@@ -1,4 +1,8 @@
-//! TODO(blt)
+//! The Arbitrary trait crate
+//!
+//! This trait provides an `Arbitrary` trait to produce well-typed data from
+//! byte buffers. The crate additionally provides different flavors of byte
+//! buffers with useful semantics.
 #![deny(warnings)]
 #![deny(bad_style)]
 #![deny(missing_docs)]
@@ -23,7 +27,7 @@ use std::time::Duration;
 ///
 /// This could be a random number generator, a static ring buffer of bytes or some such.
 pub trait Unstructured {
-    /// TODO(blt)
+    /// The error type for [`Unstructured`], see implementations for details
     type Error;
     /// Fill a `buffer` with bytes, forming the unstructured data from which
     /// `Arbitrary` structured data shall be generated.
@@ -39,7 +43,8 @@ pub trait Unstructured {
     }
 }
 
-/// TODO(blt)
+/// A trait to generate and shrink arbitrary types from an [`Unstructured`] pool
+/// of bytes.
 pub trait Arbitrary: Sized + 'static {
     /// Generate arbitrary structured data from unstructured data.
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error>;
@@ -527,7 +532,7 @@ pub struct RingBuffer<'a> {
 }
 
 impl<'a> RingBuffer<'a> {
-    /// TODO(blt)
+    /// Create a new RingBuffer
     pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self, BufferError> {
         if buffer.is_empty() {
             return Err(BufferError::EmptyInput);

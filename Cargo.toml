@@ -1,7 +1,7 @@
 [package]
 name = "arbitrary"
-version = "0.2.0-pre"
-authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>"]
+version = "0.2.0"
+authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/nagisa/rust_arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
