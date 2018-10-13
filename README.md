@@ -1,7 +1,6 @@
-## The Arbitrary trait crate
+Arbitrary: the trait for generating structured from unstructured data.
 
-The trait implements a way to convert unstructured data (array of bytes) into structured data.
-
-Fairly incomplete yet, but usable nevertheless.
+The primary purpose of this crate is to provide some way to generate structures
+out of byte buffers which various fuzzers generate.
 
 Licensed under dual MIT/Apache at your choice.
