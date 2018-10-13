@@ -2,7 +2,6 @@
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 categories = ["development-tools::testing"]
 description = "Derives arbitrary traits"
-edition = "2018"
 keywords = ["arbitrary", "testing", "derive", "macro"]
 license = "MIT/Apache-2.0"
 name = "derive_arbitrary"
