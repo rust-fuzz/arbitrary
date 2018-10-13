@@ -1,4 +1,6 @@
+#[cfg(test)]
 extern crate arbitrary;
+
 extern crate syn;
 #[macro_use]
 extern crate synstructure;

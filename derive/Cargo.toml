@@ -1,19 +1,22 @@
 [package]
+name = "derive_arbitrary"
+version = "0.2.0" # Make sure it matches the version of the arbitrary crate itself.
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 categories = ["development-tools::testing"]
-description = "Derives arbitrary traits"
 keywords = ["arbitrary", "testing", "derive", "macro"]
-license = "MIT/Apache-2.0"
-name = "derive_arbitrary"
 readme = "README.md"
+description = "Derives arbitrary traits"
+license = "MIT/Apache-2.0"
 repository = "https://github.com/nagisa/rust_arbitrary"
-version = "0.1.0"
+documentation = "https://docs.rs/arbitrary/"
 
 [dependencies]
-arbitrary = "0.2.0"
 proc-macro2 = "0.4"
 syn = "0.14"
 synstructure = "0.9"
+
+[dev-dependencies]
+arbitrary = "0.2.0"
 
 [lib]
 proc_macro = true
