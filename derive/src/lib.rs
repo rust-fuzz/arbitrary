@@ -1,10 +1,11 @@
-use synstructure::*;
 use proc_macro2::TokenStream;
+use synstructure::*;
 
 decl_derive!([Arbitrary] => arbitrary_derive);
 
 fn arbitrary_derive(s: synstructure::Structure) -> TokenStream {
-    if s.variants().len() == 1 { // struct
+    if s.variants().len() == 1 {
+        // struct
         let con = s.variants()[0].construct(|_, _| quote! { Arbitrary::arbitrary(u)? });
         s.gen_impl(quote! {
             use arbitrary::{Arbitrary, Unstructured};
@@ -15,7 +16,8 @@ fn arbitrary_derive(s: synstructure::Structure) -> TokenStream {
                 }
             }
         })
-    } else { // enum
+    } else {
+        // enum
         let mut variant_tokens = TokenStream::new();
 
         for (count, variant) in s.variants().iter().enumerate() {
@@ -45,7 +47,7 @@ fn arbitrary_derive(s: synstructure::Structure) -> TokenStream {
 
 #[test]
 fn test_arbitrary_struct() {
-    test_derive!{
+    test_derive! {
         arbitrary_derive {
             #[derive(Clone)]
             struct ArbitraryTest(u8, bool);
@@ -68,7 +70,7 @@ fn test_arbitrary_struct() {
 
 #[test]
 fn test_arbitrary_enum() {
-    test_derive!{
+    test_derive! {
         arbitrary_derive {
             #[derive(Clone)]
             enum ArbitraryTest {

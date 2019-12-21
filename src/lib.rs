@@ -283,7 +283,7 @@ macro_rules! arbitrary_array {
     ($n: expr,) => {};
 }
 
-arbitrary_array!{ 32, T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T }
+arbitrary_array! { 32, T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T }
 
 impl<A: Arbitrary> Arbitrary for Vec<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {

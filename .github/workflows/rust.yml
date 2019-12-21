@@ -21,3 +21,10 @@ jobs:
       run: cargo build --verbose --all-features --all
     - name: Run tests
       run: cargo test --verbose --all-features --all
+  rustfmt:
+    name: Check rustfmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - run: rustup component add rustfmt --toolchain stable
+    - run: cargo +stable fmt --all -- --check
