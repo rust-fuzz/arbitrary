@@ -20,8 +20,6 @@
 #![deny(unused)]
 
 #[cfg(feature = "derive")]
-extern crate derive_arbitrary;
-#[cfg(feature = "derive")]
 pub use derive_arbitrary::*;
 
 use std::borrow::{Cow, ToOwned};

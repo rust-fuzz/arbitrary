@@ -3,6 +3,7 @@ name = "arbitrary"
 version = "0.2.0"
 authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
 categories = ["development-tools::testing"]
+edition = "2018"
 keywords = ["arbitrary", "testing"]
 readme = "README.md"
 description = "The trait for generating structured data from unstructured data"

@@ -1,11 +1,4 @@
-#[cfg(test)]
-extern crate arbitrary;
-
-extern crate syn;
-#[macro_use]
-extern crate synstructure;
-extern crate proc_macro2;
-
+use synstructure::*;
 use proc_macro2::TokenStream;
 
 decl_derive!([Arbitrary] => arbitrary_derive);
@@ -14,8 +7,6 @@ fn arbitrary_derive(s: synstructure::Structure) -> TokenStream {
     if s.variants().len() == 1 { // struct
         let con = s.variants()[0].construct(|_, _| quote! { Arbitrary::arbitrary(u)? });
         s.gen_impl(quote! {
-            extern crate arbitrary;
-
             use arbitrary::{Arbitrary, Unstructured};
 
             gen impl Arbitrary for @Self {
@@ -34,8 +25,6 @@ fn arbitrary_derive(s: synstructure::Structure) -> TokenStream {
         }
         let count = s.variants().len() as u64;
         s.gen_impl(quote! {
-            extern crate arbitrary;
-
             use arbitrary::{Arbitrary, Unstructured};
 
             gen impl Arbitrary for @Self {
@@ -64,8 +53,6 @@ fn test_arbitrary_struct() {
         expands to {
             #[allow(non_upper_case_globals)]
             const _DERIVE_Arbitrary_FOR_ArbitraryTest : () = {
-                extern crate arbitrary;
-
                 use arbitrary::{Arbitrary, Unstructured};
 
                 impl Arbitrary for ArbitraryTest {
@@ -93,8 +80,6 @@ fn test_arbitrary_enum() {
         expands to {
             #[allow(non_upper_case_globals)]
             const _DERIVE_Arbitrary_FOR_ArbitraryTest : () = {
-                extern crate arbitrary;
-
                 use arbitrary::{Arbitrary, Unstructured};
 
                 impl Arbitrary for ArbitraryTest {

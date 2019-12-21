@@ -1,6 +1,5 @@
 #![cfg(feature = "derive")]
 
-extern crate arbitrary;
 use arbitrary::*;
 
 #[derive(Copy, Clone, Debug, Arbitrary)]
