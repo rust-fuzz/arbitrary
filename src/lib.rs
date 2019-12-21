@@ -11,7 +11,6 @@
 //! This trait provides an `Arbitrary` trait to produce well-typed data from
 //! byte buffers. The crate additionally provides different flavors of byte
 //! buffers with useful semantics.
-#![deny(warnings)]
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
