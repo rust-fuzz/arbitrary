@@ -12,3 +12,8 @@ documentation = "https://docs.rs/arbitrary/"
 
 
 [dependencies]
+derive_arbitrary = { version = "=0.2.0", path = "./derive", optional = true }
+
+[features]
+# Turn this feature on to enable support for `#[derive(Arbitrary)]`.
+derive = ["derive_arbitrary"]

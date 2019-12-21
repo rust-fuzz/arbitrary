@@ -19,6 +19,11 @@
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
 
+#[cfg(feature = "derive")]
+extern crate derive_arbitrary;
+#[cfg(feature = "derive")]
+pub use derive_arbitrary::*;
+
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};

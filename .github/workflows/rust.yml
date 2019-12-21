@@ -3,13 +3,21 @@ name: Rust
 on: [push, pull_request]
 
 jobs:
-  build:
-
+  vanilla_build:
+    name: Vanilla Build
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v1
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+  all_features_build:
+    name: All Features Enabled Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build
+      run: cargo build --verbose --all-features
+    - name: Run tests
+      run: cargo test --verbose --all-features

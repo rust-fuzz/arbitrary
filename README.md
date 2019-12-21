@@ -26,6 +26,7 @@ RGB always ends up exactly where we started).
 ```rust
 use arbitrary::{Arbitrary, Unstructured};
 
+#[derive(Copy, Clone, Debug)]
 pub struct Rgb {
     pub r: u8,
     pub g: u8,
@@ -68,6 +69,40 @@ impl Arbitrary for Rgb {
     }
 }
 ```
+
+## Automatically Deriving `Arbitrary`
+
+Writing `Arbitrary` implementations by hand can sometimes be tedious. If there
+isn't any custom logic, and you're just gluing together the results of calling
+each field's type's `Arbitrary` implementation into your struct, you can use
+`#[derive(Arbitrary)]` instead.
+
+First off, deriving `Arbitrary` requires that the `"derive"` cargo feature is
+enabled:
+
+```toml
+# Cargo.toml
+
+[dependencies]
+arbitrary = { version = "0.2.0", features = ["derive"] }
+```
+
+Then, we can rewrite our original `Arbitrary` implementation for `Rgb` to just
+this:
+
+```rust
+#[derive(Copy, Clone, Debug, Arbitrary)]
+// We added this!            ^^^^^^^^^
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+```
+
+Note that deriving `Arbitrary` does not derive a custom `shrink` implementation
+for you yet. If you need shrinking support, then you need to write your
+`Arbitrary` implementations by hand for the time being.
 
 ## License
 
