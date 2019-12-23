@@ -257,6 +257,14 @@ impl Arbitrary for Duration {
             <u32 as Arbitrary>::arbitrary(u)? % 1_000_000_000,
         ))
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(
+            (self.as_secs(), self.subsec_nanos())
+                .shrink()
+                .map(|(secs, nanos)| Duration::new(secs, nanos % 1_000_000_000)),
+        )
+    }
 }
 
 impl<A: Arbitrary> Arbitrary for Option<A> {
