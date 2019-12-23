@@ -204,6 +204,14 @@ impl Arbitrary for char {
             }
         }
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let x = *self as u32;
+        Box::new(x.shrink().filter_map(|x| {
+            use std::convert::TryFrom;
+            char::try_from(x).ok()
+        }))
+    }
 }
 
 impl Arbitrary for AtomicBool {
