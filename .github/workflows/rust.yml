@@ -1,15 +1,32 @@
 name: Rust
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
-  build:
-
+  vanilla_build:
+    name: Vanilla Build
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v1
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --all
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all
+  all_features_build:
+    name: All Features Enabled Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build
+      run: cargo build --verbose --all-features --all
+    - name: Run tests
+      run: cargo test --verbose --all-features --all
+    - name: Build Examples
+      run: cargo build --examples --all-features --all
+  rustfmt:
+    name: Check rustfmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - run: rustup component add rustfmt --toolchain stable
+    - run: cargo +stable fmt --all -- --check

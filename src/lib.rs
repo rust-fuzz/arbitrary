@@ -11,7 +11,6 @@
 //! This trait provides an `Arbitrary` trait to produce well-typed data from
 //! byte buffers. The crate additionally provides different flavors of byte
 //! buffers with useful semantics.
-#![deny(warnings)]
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
@@ -19,6 +18,9 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
+
+#[cfg(feature = "derive")]
+pub use derive_arbitrary::*;
 
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
@@ -281,7 +283,7 @@ macro_rules! arbitrary_array {
     ($n: expr,) => {};
 }
 
-arbitrary_array!{ 32, T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T }
+arbitrary_array! { 32, T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T }
 
 impl<A: Arbitrary> Arbitrary for Vec<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {

@@ -3,6 +3,7 @@ name = "arbitrary"
 version = "0.2.0"
 authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
 categories = ["development-tools::testing"]
+edition = "2018"
 keywords = ["arbitrary", "testing"]
 readme = "README.md"
 description = "The trait for generating structured data from unstructured data"
@@ -10,5 +11,15 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/nagisa/rust_arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
 
-
 [dependencies]
+derive_arbitrary = { version = "=0.2.0", path = "./derive", optional = true }
+
+[features]
+# Turn this feature on to enable support for `#[derive(Arbitrary)]`.
+derive = ["derive_arbitrary"]
+
+[[example]]
+name = "derive_enum"
+required-features = ["derive"]
+
+[workspace]

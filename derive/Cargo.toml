@@ -3,6 +3,7 @@ name = "derive_arbitrary"
 version = "0.2.0" # Make sure it matches the version of the arbitrary crate itself.
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 categories = ["development-tools::testing"]
+edition = "2018"
 keywords = ["arbitrary", "testing", "derive", "macro"]
 readme = "README.md"
 description = "Derives arbitrary traits"
@@ -14,9 +15,6 @@ documentation = "https://docs.rs/arbitrary/"
 proc-macro2 = "0.4"
 syn = "0.14"
 synstructure = "0.9"
-
-[dev-dependencies]
-arbitrary = "0.2.0"
 
 [lib]
 proc_macro = true
