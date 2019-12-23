@@ -23,7 +23,11 @@ you could take arbitrary `Rgb` instances in a test function that asserts some
 property (for example, asserting that RGB converted to HSL and converted back to
 RGB always ends up exactly where we started).
 
+You can write an `Arbitrary` implementation by hand:
+
 ```rust
+// rgb.rs
+
 use arbitrary::{Arbitrary, Unstructured};
 
 #[derive(Copy, Clone, Debug)]
@@ -46,7 +50,31 @@ impl Arbitrary for Rgb {
 }
 ```
 
-## Shrinking
+Or, equivalently, you can enable the `"derive"` cargo feature and have the
+custom derive implement it for you:
+
+```toml
+# Cargo.toml
+
+[dependencies]
+arbitrary = { version = "0.2.0", features = ["derive"] }
+```
+
+```rust
+// rgb.rs
+
+use arbitrary::Arbitrary;
+
+#[derive(Copy, Clone, Debug, Arbitrary)]
+//                           ^^^^^^^^^
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+```
+
+### Shrinking
 
 To assist with test case reduction, where you want to find the smallest and most
 easily understandable test case that still demonstrates a bug you've discovered,
@@ -67,36 +95,6 @@ impl Arbitrary for Rgb {
         let bs = self.b.shrink();
         Box::new(rs.zip(gs).zip(bs).map(|((r, g), b)| Rgb { r, g, b }))
     }
-}
-```
-
-## Automatically Deriving `Arbitrary`
-
-Writing `Arbitrary` implementations by hand can sometimes be tedious. If there
-isn't any custom logic, and you're just gluing together the results of calling
-each field's type's `Arbitrary` implementation into your struct, you can use
-`#[derive(Arbitrary)]` instead.
-
-First off, deriving `Arbitrary` requires that the `"derive"` cargo feature is
-enabled:
-
-```toml
-# Cargo.toml
-
-[dependencies]
-arbitrary = { version = "0.2.0", features = ["derive"] }
-```
-
-Then, we can rewrite our original `Arbitrary` implementation for `Rgb` to just
-this:
-
-```rust
-#[derive(Copy, Clone, Debug, Arbitrary)]
-// We added this!            ^^^^^^^^^
-pub struct Rgb {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
 }
 ```
 
