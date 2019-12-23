@@ -18,4 +18,8 @@ derive_arbitrary = { version = "=0.2.0", path = "./derive", optional = true }
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
 
+[[example]]
+name = "derive_enum"
+required-features = ["derive"]
+
 [workspace]
