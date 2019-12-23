@@ -16,8 +16,5 @@ proc-macro2 = "0.4"
 syn = "0.14"
 synstructure = "0.9"
 
-[dev-dependencies]
-arbitrary = "0.2.0"
-
 [lib]
 proc_macro = true
