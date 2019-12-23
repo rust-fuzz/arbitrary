@@ -30,7 +30,7 @@ use std::iter;
 use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -218,17 +218,35 @@ impl Arbitrary for AtomicBool {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        if self.load(Ordering::SeqCst) {
+            once(AtomicBool::new(false))
+        } else {
+            empty()
+        }
+    }
 }
 
 impl Arbitrary for AtomicIsize {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let x = self.load(Ordering::SeqCst);
+        Box::new(x.shrink().map(Self::new))
+    }
 }
 
 impl Arbitrary for AtomicUsize {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let x = self.load(Ordering::SeqCst);
+        Box::new(x.shrink().map(Self::new))
     }
 }
 
