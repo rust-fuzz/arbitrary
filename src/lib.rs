@@ -138,16 +138,52 @@ impl_arbitrary_for_integers! {
     isize: usize;
 }
 
-impl Arbitrary for f32 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(Self::from_bits(<u32 as Arbitrary>::arbitrary(u)?))
+macro_rules! impl_arbitrary_for_floats {
+    ( $( $ty:ident : $unsigned:ty; )* ) => {
+        $(
+            impl Arbitrary for $ty {
+                fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+                    Ok(Self::from_bits(<$unsigned as Arbitrary>::arbitrary(u)?))
+                }
+
+                fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+                    if *self == 0.0 {
+                        empty()
+                    } else if !self.is_finite() {
+                        once(0.0)
+                    } else {
+                        let mut x = *self;
+                        Box::new(iter::once(0.0).chain(iter::from_fn(move || {
+                            // NB: do not test for zero like we do for integers
+                            // because dividing by two until we reach a fixed
+                            // point is NOT guaranteed to end at zero in
+                            // non-default rounding modes of IEEE-754!
+                            //
+                            // For example, with 64-bit floats and the
+                            // round-to-positive-infinity mode:
+                            //
+                            //     5e-324 / 2.0 == 5e-324
+                            //
+                            // (5e-234 is the smallest postive number that can
+                            // be precisely represented in a 64-bit float.)
+                            let y = x;
+                            x = x / 2.0;
+                            if x == y {
+                                None
+                            } else {
+                                Some(x)
+                            }
+                        })))
+                    }
+                }
+            }
+        )*
     }
 }
 
-impl Arbitrary for f64 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(Self::from_bits(<u64 as Arbitrary>::arbitrary(u)?))
-    }
+impl_arbitrary_for_floats! {
+    f32: u32;
+    f64: u64;
 }
 
 impl Arbitrary for char {
