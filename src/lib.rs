@@ -27,6 +27,7 @@ use std::cell::{Cell, RefCell, UnsafeCell};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
 use std::iter;
+use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
@@ -65,6 +66,14 @@ pub trait Arbitrary: Sized + 'static {
     }
 }
 
+fn empty<T: 'static>() -> Box<dyn Iterator<Item = T>> {
+    Box::new(iter::empty())
+}
+
+fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
+    Box::new(iter::once(val))
+}
+
 impl Arbitrary for () {
     fn arbitrary<U: Unstructured + ?Sized>(_: &mut U) -> Result<Self, U::Error> {
         Ok(())
@@ -75,89 +84,58 @@ impl Arbitrary for bool {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Ok(<u8 as Arbitrary>::arbitrary(u)? & 1 == 1)
     }
-}
 
-impl Arbitrary for u8 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        let mut x = [0];
-        u.fill_buffer(&mut x)?;
-        Ok(x[0])
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(if *self { once(false) } else { empty() })
     }
 }
 
-impl Arbitrary for i8 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u8 as Arbitrary>::arbitrary(u)? as Self)
+macro_rules! impl_arbitrary_for_integers {
+    ( $( $ty:ty: $unsigned:ty; )* ) => {
+        $(
+            impl Arbitrary for $ty {
+                fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+                    let mut buf = [0; mem::size_of::<$ty>()];
+                    u.fill_buffer(&mut buf)?;
+                    let mut x: $unsigned = 0;
+                    for i in 0..mem::size_of::<$ty>() {
+                        x |= buf[i] as $unsigned << (i * 8);
+                    }
+                    Ok(x as $ty)
+                }
+
+                fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+                    let mut x = *self;
+                    if x == 0 {
+                        return empty();
+                    }
+                    Box::new(iter::once(0).chain(std::iter::from_fn(move || {
+                        x = x / 2;
+                        if x == 0 {
+                            None
+                        } else {
+                            Some(x)
+                        }
+                    })))
+                }
+            }
+        )*
     }
 }
 
-impl Arbitrary for u16 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        let mut x = [0, 0];
-        u.fill_buffer(&mut x)?;
-        Ok(Self::from(x[0]) | Self::from(x[1]) << 8)
-    }
-}
-
-impl Arbitrary for i16 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u16 as Arbitrary>::arbitrary(u)? as Self)
-    }
-}
-
-impl Arbitrary for u32 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        let mut x = [0, 0, 0, 0];
-        u.fill_buffer(&mut x)?;
-        Ok(Self::from(x[0])
-            | Self::from(x[1]) << 8
-            | Self::from(x[2]) << 16
-            | Self::from(x[3]) << 24)
-    }
-}
-
-impl Arbitrary for i32 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u32 as Arbitrary>::arbitrary(u)? as Self)
-    }
-}
-
-impl Arbitrary for u64 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        let mut x = [0, 0, 0, 0, 0, 0, 0, 0];
-        u.fill_buffer(&mut x)?;
-        Ok(Self::from(x[0])
-            | Self::from(x[1]) << 8
-            | Self::from(x[2]) << 16
-            | Self::from(x[3]) << 24
-            | Self::from(x[4]) << 32
-            | Self::from(x[5]) << 40
-            | Self::from(x[6]) << 48
-            | Self::from(x[7]) << 56)
-    }
-}
-
-impl Arbitrary for i64 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<u64 as Arbitrary>::arbitrary(u)? as Self)
-    }
-}
-
-impl Arbitrary for usize {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(match ::std::mem::size_of::<Self>() {
-            2 => <u16 as Arbitrary>::arbitrary(u)? as Self,
-            4 => <u32 as Arbitrary>::arbitrary(u)? as Self,
-            8 => <u64 as Arbitrary>::arbitrary(u)? as Self,
-            _ => unreachable!(), // welcome, 128 bit machine users
-        })
-    }
-}
-
-impl Arbitrary for isize {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        Ok(<usize as Arbitrary>::arbitrary(u)? as Self)
-    }
+impl_arbitrary_for_integers! {
+    u8: u8;
+    u16: u16;
+    u32: u32;
+    u64: u64;
+    u128: u128;
+    usize: usize;
+    i8: u8;
+    i16: u16;
+    i32: u32;
+    i64: u64;
+    i128: u128;
+    isize: usize;
 }
 
 impl Arbitrary for f32 {
@@ -608,5 +586,14 @@ mod test {
         assert_eq!(rb.container_size().unwrap(), 2);
         assert_eq!(rb.container_size().unwrap(), 6);
         assert_eq!(rb.container_size().unwrap(), 1);
+    }
+
+    #[test]
+    fn arbitrary_for_integers() {
+        let x = [1, 2, 3, 4];
+        let mut buf = FiniteBuffer::new(&x, x.len()).unwrap();
+        let expected = 1 | (2 << 8) | (3 << 16) | (4 << 24);
+        let actual = i32::arbitrary(&mut buf).unwrap();
+        assert_eq!(expected, actual);
     }
 }
