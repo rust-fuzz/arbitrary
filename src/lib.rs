@@ -501,6 +501,13 @@ where
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Cow::Owned)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        match *self {
+            Cow::Owned(ref o) => Box::new(o.shrink().map(Cow::Owned)),
+            Cow::Borrowed(b) => Box::new(b.to_owned().shrink().map(Cow::Owned)),
+        }
+    }
 }
 
 impl Arbitrary for String {
