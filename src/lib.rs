@@ -531,6 +531,13 @@ impl Arbitrary for CString {
             Self::new(x).unwrap()
         })
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.as_bytes().iter(), |b| {
+            Box::new(b.shrink().filter(|&b| b != 0))
+        });
+        Box::new(collections.map(|bytes| Self::new(bytes).unwrap()))
+    }
 }
 
 impl Arbitrary for OsString {
@@ -852,6 +859,38 @@ mod test {
             ]
             .iter()
             .map(|s| s.to_string())
+            .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn shrink_cstring() {
+        let s = CString::new(b"aaaa".to_vec()).unwrap();
+        assert_eq!(
+            s.shrink().collect::<Vec<_>>(),
+            [
+                &[][..],
+                &[b'0'][..],
+                &[0x18][..],
+                &[0x0c][..],
+                &[0x06][..],
+                &[0x03][..],
+                &[0x01][..],
+                &[b'0', b'0'][..],
+                &[0x18, 0x18][..],
+                &[0x0c, 0x0c][..],
+                &[0x06, 0x06][..],
+                &[0x03, 0x03][..],
+                &[0x01, 0x01][..],
+                &[b'0', b'0', b'0', b'0'][..],
+                &[0x18, 0x18, 0x18, 0x18][..],
+                &[0x0c, 0x0c, 0x0c, 0x0c][..],
+                &[0x06, 0x06, 0x06, 0x06][..],
+                &[0x03, 0x03, 0x03, 0x03][..],
+                &[0x01, 0x01, 0x01, 0x01][..],
+            ]
+            .iter()
+            .map(|s| CString::new(s.to_vec()).unwrap())
             .collect::<Vec<_>>(),
         );
     }
