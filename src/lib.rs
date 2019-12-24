@@ -643,6 +643,11 @@ impl<A: Arbitrary> Arbitrary for RefCell<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let x = self.borrow();
+        Box::new(x.shrink().map(Self::new))
+    }
 }
 
 impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
