@@ -654,6 +654,9 @@ impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
+
+    // We can't non-trivially (i.e. not an empty iterator) implement `shrink` in
+    // a safe way, since we don't have a safe way to get the inner value.
 }
 
 impl<A: Arbitrary> Arbitrary for Mutex<A> {
