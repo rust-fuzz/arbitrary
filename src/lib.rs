@@ -331,10 +331,35 @@ macro_rules! arbitrary_array {
 
         impl<T: Arbitrary> Arbitrary for [T; $n] {
             fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<[T; $n], U::Error> {
-                Ok([Arbitrary::arbitrary(u)?,
-                    $(<$ts as Arbitrary>::arbitrary(u)?),*])
+                Ok([
+                    Arbitrary::arbitrary(u)?,
+                    $(<$ts as Arbitrary>::arbitrary(u)?),*
+                ])
             }
-            // TODO: shrink
+
+            #[allow(unused_mut)] // For the `[T; 1]` case.
+            fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+                let mut i = 0;
+                let mut shrinkers = [
+                    self[i].shrink(),
+                    $({
+                        i += 1;
+                        let t: &$ts = &self[i];
+                        t.shrink()
+                    }),*
+                ];
+                Box::new(iter::from_fn(move || {
+                    let mut i = 0;
+                    Some([
+                        shrinkers[i].next()?,
+                        $({
+                            i += 1;
+                            let t: $ts = shrinkers[i].next()?;
+                            t
+                        }),*
+                    ])
+                }))
+            }
         }
     };
     ($n: expr,) => {};
@@ -682,6 +707,15 @@ mod test {
         assert_eq!(
             tup.shrink().collect::<Vec<_>>(),
             [(0, 0, 0), (5, 10, 15), (2, 5, 7), (1, 2, 3)]
+        );
+    }
+
+    #[test]
+    fn shrink_array() {
+        let tup = [10, 20, 30];
+        assert_eq!(
+            tup.shrink().collect::<Vec<_>>(),
+            [[0, 0, 0], [5, 10, 15], [2, 5, 7], [1, 2, 3]]
         );
     }
 }
