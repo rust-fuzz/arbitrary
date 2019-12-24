@@ -367,6 +367,35 @@ macro_rules! arbitrary_array {
 
 arbitrary_array! { 32, T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T }
 
+fn shrink_collection<'a, T, A: Arbitrary>(
+    entries: impl Iterator<Item = T>,
+    f: impl Fn(&T) -> Box<dyn Iterator<Item = A>>,
+) -> Box<dyn Iterator<Item = Vec<A>>> {
+    let entries: Vec<_> = entries.collect();
+    if entries.is_empty() {
+        return empty();
+    }
+
+    let mut shrinkers: Vec<Vec<_>> = vec![];
+    let mut i = entries.len();
+    loop {
+        shrinkers.push(entries.iter().take(i).map(&f).collect());
+        i = i / 2;
+        if i == 0 {
+            break;
+        }
+    }
+    Box::new(iter::once(vec![]).chain(iter::from_fn(move || loop {
+        let mut shrinker = shrinkers.pop()?;
+        let x: Option<Vec<A>> = shrinker.iter_mut().map(|s| s.next()).collect();
+        if x.is_none() {
+            continue;
+        }
+        shrinkers.push(shrinker);
+        return x;
+    })))
+}
+
 impl<A: Arbitrary> Arbitrary for Vec<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let size = u.container_size()?;
@@ -374,28 +403,7 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        if self.is_empty() {
-            empty()
-        } else {
-            let mut shrinkers: Vec<Vec<_>> = vec![];
-            let mut i = self.len();
-            loop {
-                shrinkers.push(self[..i].iter().map(|x| x.shrink()).collect());
-                i = i / 2;
-                if i == 0 {
-                    break;
-                }
-            }
-            Box::new(iter::once(vec![]).chain(iter::from_fn(move || loop {
-                let mut shrinker = shrinkers.pop()?;
-                let x: Option<Vec<A>> = shrinker.iter_mut().map(|s| s.next()).collect();
-                if x.is_none() {
-                    continue;
-                }
-                shrinkers.push(shrinker);
-                return x;
-            })))
-        }
+        shrink_collection(self.iter(), |x| x.shrink())
     }
 }
 
@@ -404,12 +412,23 @@ impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections =
+            shrink_collection(self.iter(), |(k, v)| Box::new(k.shrink().zip(v.shrink())));
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
+    }
 }
 
 impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.iter(), |v| v.shrink());
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
     }
 }
 
@@ -418,12 +437,23 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.iter(), |v| v.shrink());
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
+    }
 }
 
 impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<K, V> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections =
+            shrink_collection(self.iter(), |(k, v)| Box::new(k.shrink().zip(v.shrink())));
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
     }
 }
 
@@ -432,6 +462,11 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.iter(), |v| v.shrink());
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
+    }
 }
 
 impl<A: Arbitrary> Arbitrary for LinkedList<A> {
@@ -439,12 +474,22 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.iter(), |v| v.shrink());
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
+    }
 }
 
 impl<A: Arbitrary> Arbitrary for VecDeque<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.iter(), |v| v.shrink());
+        Box::new(collections.map(|entries| entries.into_iter().collect()))
     }
 }
 
