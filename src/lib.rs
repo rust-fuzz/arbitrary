@@ -579,11 +579,20 @@ impl<A: Arbitrary> Arbitrary for Box<[A]> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(shrink_collection(self.iter(), |x| x.shrink()).map(|v| v.into_boxed_slice()))
+    }
 }
 
 impl Arbitrary for Box<str> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.chars(), |ch| ch.shrink());
+        Box::new(collections.map(|chars| chars.into_iter().collect::<String>().into_boxed_str()))
     }
 }
 
