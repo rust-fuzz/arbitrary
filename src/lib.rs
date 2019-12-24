@@ -306,11 +306,20 @@ macro_rules! arbitrary_tuple {
     () => {};
     ($x: ident $($xs: ident)*) => {
         arbitrary_tuple!($($xs)*);
+
         impl<$x: Arbitrary, $($xs: Arbitrary),*> Arbitrary for ($x, $($xs),*) {
             fn arbitrary<_U: Unstructured + ?Sized>(u: &mut _U) -> Result<Self, _U::Error> {
                 Ok((Arbitrary::arbitrary(u)?, $($xs::arbitrary(u)?),*))
             }
-            // TODO: shrink
+
+            #[allow(non_snake_case)]
+            fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+                let ( $x, $( $xs ),* ) = self;
+                let ( mut $x, $( mut $xs ),* ) = ( $x.shrink(), $( $xs.shrink() ),* );
+                Box::new(iter::from_fn(move || {
+                    Some(( $x.next()?, $( $xs.next()? ),* ))
+                }))
+            }
         }
     };
 }
@@ -665,5 +674,14 @@ mod test {
         let expected = 1 | (2 << 8) | (3 << 16) | (4 << 24);
         let actual = i32::arbitrary(&mut buf).unwrap();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn shrink_tuple() {
+        let tup = (10, 20, 30);
+        assert_eq!(
+            tup.shrink().collect::<Vec<_>>(),
+            [(0, 0, 0), (5, 10, 15), (2, 5, 7), (1, 2, 3)]
+        );
     }
 }
