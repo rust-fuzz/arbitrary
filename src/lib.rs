@@ -623,6 +623,10 @@ impl<A: Arbitrary> Arbitrary for Rc<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new((&**self).shrink().map(Self::new))
+    }
 }
 
 impl<A: Arbitrary> Arbitrary for Cell<A> {
