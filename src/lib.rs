@@ -558,6 +558,11 @@ impl Arbitrary for PathBuf {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let s = self.clone().into_os_string();
+        Box::new(s.shrink().map(From::from))
+    }
 }
 
 impl<A: Arbitrary> Arbitrary for Box<A> {
