@@ -372,6 +372,31 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        if self.is_empty() {
+            empty()
+        } else {
+            let mut shrinkers: Vec<Vec<_>> = vec![];
+            let mut i = self.len();
+            loop {
+                shrinkers.push(self[..i].iter().map(|x| x.shrink()).collect());
+                i = i / 2;
+                if i == 0 {
+                    break;
+                }
+            }
+            Box::new(iter::once(vec![]).chain(iter::from_fn(move || loop {
+                let mut shrinker = shrinkers.pop()?;
+                let x: Option<Vec<A>> = shrinker.iter_mut().map(|s| s.next()).collect();
+                if x.is_none() {
+                    continue;
+                }
+                shrinkers.push(shrinker);
+                return x;
+            })))
+        }
+    }
 }
 
 impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
@@ -716,6 +741,26 @@ mod test {
         assert_eq!(
             tup.shrink().collect::<Vec<_>>(),
             [[0, 0, 0], [5, 10, 15], [2, 5, 7], [1, 2, 3]]
+        );
+    }
+
+    #[test]
+    fn shrink_vec() {
+        let v = vec![4, 4, 4, 4];
+        assert_eq!(
+            v.shrink().collect::<Vec<_>>(),
+            [
+                vec![],
+                vec![0],
+                vec![2],
+                vec![1],
+                vec![0, 0],
+                vec![2, 2],
+                vec![1, 1],
+                vec![0, 0, 0, 0],
+                vec![2, 2, 2, 2],
+                vec![1, 1, 1, 1]
+            ]
         );
     }
 }
