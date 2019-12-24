@@ -54,6 +54,14 @@ pub trait Unstructured {
     }
 }
 
+fn empty<T: 'static>() -> Box<dyn Iterator<Item = T>> {
+    Box::new(iter::empty())
+}
+
+fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
+    Box::new(iter::once(val))
+}
+
 /// A trait to generate and shrink arbitrary types from an [`Unstructured`] pool
 /// of bytes.
 pub trait Arbitrary: Sized + 'static {
@@ -62,16 +70,8 @@ pub trait Arbitrary: Sized + 'static {
 
     /// Generate derived values which are “smaller” than the original one.
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        Box::new(iter::empty())
+        empty()
     }
-}
-
-fn empty<T: 'static>() -> Box<dyn Iterator<Item = T>> {
-    Box::new(iter::empty())
-}
-
-fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
-    Box::new(iter::once(val))
 }
 
 impl Arbitrary for () {
@@ -280,7 +280,7 @@ impl<A: Arbitrary> Arbitrary for Option<A> {
         if let Some(ref a) = *self {
             Box::new(iter::once(None).chain(a.shrink().map(Some)))
         } else {
-            Box::new(iter::empty())
+            empty()
         }
     }
 }
