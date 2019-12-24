@@ -98,9 +98,8 @@ impl Arbitrary for Rgb {
 }
 ```
 
-Note that deriving `Arbitrary` does not derive a custom `shrink` implementation
-for you yet. If you need shrinking support, then you need to write your
-`Arbitrary` implementations by hand for the time being.
+Note that deriving `Arbitrary` will automatically derive a custom `shrink`
+implementation for you.
 
 ## License
 

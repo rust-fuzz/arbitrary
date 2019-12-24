@@ -1,46 +1,88 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
 use synstructure::*;
 
 decl_derive!([Arbitrary] => arbitrary_derive);
 
-fn arbitrary_derive(s: synstructure::Structure) -> TokenStream {
-    if s.variants().len() == 1 {
+fn gen_arbitrary_method(variants: &[VariantInfo]) -> TokenStream {
+    if variants.len() == 1 {
         // struct
-        let con = s.variants()[0].construct(|_, _| quote! { Arbitrary::arbitrary(u)? });
-        s.gen_impl(quote! {
-            use arbitrary::{Arbitrary, Unstructured};
-
-            gen impl Arbitrary for @Self {
-                fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-                    Ok(#con)
-                }
+        let con = variants[0].construct(|_, _| quote! { Arbitrary::arbitrary(u)? });
+        quote! {
+            fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+                Ok(#con)
             }
-        })
+        }
     } else {
         // enum
         let mut variant_tokens = TokenStream::new();
 
-        for (count, variant) in s.variants().iter().enumerate() {
+        for (count, variant) in variants.iter().enumerate() {
             let count = count as u64;
             let constructor = variant.construct(|_, _| quote! { Arbitrary::arbitrary(u)? });
             variant_tokens.extend(quote! { #count => #constructor, });
         }
-        let count = s.variants().len() as u64;
-        s.gen_impl(quote! {
-            use arbitrary::{Arbitrary, Unstructured};
 
-            gen impl Arbitrary for @Self {
-                fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+        let count = variants.len() as u64;
 
-                    // use multiply + shift to generate a ranged random number
-                    // with slight bias
-                    // see https://lemire.me/blog/2016/06/30/fast-random-shuffling
-                    Ok(match (u64::from(<u32 as Arbitrary>::arbitrary(u)?) * #count) >> 32 {
-                        #variant_tokens
-                        _ => unreachable!()
-                    })
-                }
+        quote! {
+            fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+                // Use a multiply + shift to generate a ranged random number
+                // with slight bias. For details, see:
+                // https://lemire.me/blog/2016/06/30/fast-random-shuffling
+                Ok(match (u64::from(<u32 as Arbitrary>::arbitrary(u)?) * #count) >> 32 {
+                    #variant_tokens
+                    _ => unreachable!()
+                })
             }
-        })
+        }
     }
+}
+
+fn gen_shrink_method(s: &Structure) -> TokenStream {
+    let variants = s.each_variant(|v| {
+        if v.bindings().is_empty() {
+            return quote! {
+                Box::new(None.into_iter())
+            };
+        }
+
+        let mut value_idents = vec![];
+        let mut shrinker_idents = vec![];
+        let mut shrinker_exprs = vec![];
+        for (i, b) in v.bindings().iter().enumerate() {
+            value_idents.push(Ident::new(&format!("value{}", i), Span::call_site()));
+            shrinker_idents.push(Ident::new(&format!("shrinker{}", i), Span::call_site()));
+            shrinker_exprs.push(quote! { Arbitrary::shrink(#b) });
+        }
+        let cons = v.construct(|_, i| &value_idents[i]);
+        let shrinker_idents = &shrinker_idents;
+        quote! {
+            #( let mut #shrinker_idents = #shrinker_exprs; )*
+            Box::new(std::iter::from_fn(move || {
+                #( let #value_idents = #shrinker_idents.next()?; )*
+                Some(#cons)
+            }))
+        }
+    });
+
+    quote! {
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            match self {
+                #variants
+            }
+        }
+    }
+}
+
+fn arbitrary_derive(s: Structure) -> TokenStream {
+    let arbitrary_method = gen_arbitrary_method(s.variants());
+    let shrink_method = gen_shrink_method(&s);
+    s.gen_impl(quote! {
+        use arbitrary::{Arbitrary, Unstructured};
+
+        gen impl Arbitrary for @Self {
+            #arbitrary_method
+            #shrink_method
+        }
+    })
 }
