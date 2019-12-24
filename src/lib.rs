@@ -188,20 +188,18 @@ impl_arbitrary_for_floats! {
 
 impl Arbitrary for char {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        const CHAR_MASK: u32 = 0x001f_ffff;
-        let mut c = <u32 as Arbitrary>::arbitrary(u)? & CHAR_MASK;
-        loop {
-            // Cannot do rejection sampling which the rand crate does, because it may result in
-            // infinite loop with unstructured data provided by a ring buffer. Instead we just pick
-            // closest valid character which comes before the current one.
-            //
-            // Note, of course this does not result in unbiased data, but it is not really
-            // necessary for either quickcheck or fuzzing.
-            if let Some(c) = ::std::char::from_u32(c) {
-                return Ok(c);
-            } else {
-                c -= 1;
-            }
+        use ::std::char;
+        const CHAR_END: u32 = 0x0011_000;
+        // The size of the surrogate blocks
+        const SURROGATES_START: u32 = 0xD800;
+        let mut c = <u32 as Arbitrary>::arbitrary(u)? % CHAR_END;
+        if let Some(c) = char::from_u32(c) {
+            return Ok(c);
+        } else {
+            // We found a surrogate, wrap and try again
+            c -= SURROGATES_START;
+            Ok(char::from_u32(c)
+                .expect("Generated character should be valid! This is a bug in arbitrary-rs"))
         }
     }
 
