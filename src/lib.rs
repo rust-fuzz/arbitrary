@@ -688,6 +688,11 @@ impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let ref x = self.0;
+        Box::new(x.shrink().map(::std::num::Wrapping))
+    }
 }
 
 /// An enumeration of buffer creation errors
