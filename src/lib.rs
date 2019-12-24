@@ -517,6 +517,11 @@ impl Arbitrary for String {
             .map(|_| <char as Arbitrary>::arbitrary(u))
             .collect()
     }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let collections = shrink_collection(self.chars(), |ch| ch.shrink());
+        Box::new(collections.map(|chars| chars.into_iter().collect()))
+    }
 }
 
 impl Arbitrary for CString {
@@ -813,6 +818,41 @@ mod test {
                 vec![2, 2, 2, 2],
                 vec![1, 1, 1, 1]
             ]
+        );
+    }
+
+    #[test]
+    fn shrink_string() {
+        let s = "aaaa".to_string();
+        assert_eq!(
+            s.shrink().collect::<Vec<_>>(),
+            [
+                "",
+                "\u{0}",
+                "0",
+                "\u{18}",
+                "\u{c}",
+                "\u{6}",
+                "\u{3}",
+                "\u{1}",
+                "\u{0}\u{0}",
+                "00",
+                "\u{18}\u{18}",
+                "\u{c}\u{c}",
+                "\u{6}\u{6}",
+                "\u{3}\u{3}",
+                "\u{1}\u{1}",
+                "\u{0}\u{0}\u{0}\u{0}",
+                "0000",
+                "\u{18}\u{18}\u{18}\u{18}",
+                "\u{c}\u{c}\u{c}\u{c}",
+                "\u{6}\u{6}\u{6}\u{6}",
+                "\u{3}\u{3}\u{3}\u{3}",
+                "\u{1}\u{1}\u{1}\u{1}"
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>(),
         );
     }
 }
