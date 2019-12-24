@@ -633,6 +633,10 @@ impl<A: Arbitrary> Arbitrary for Cell<A> {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
+
+    // Note: can't implement `shrink` without either more trait bounds on `A`
+    // (copy or default) or `Cell::update`:
+    // https://github.com/rust-lang/rust/issues/50186
 }
 
 impl<A: Arbitrary> Arbitrary for RefCell<A> {
