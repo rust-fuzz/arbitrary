@@ -191,7 +191,7 @@ impl_arbitrary_for_floats! {
 
 impl Arbitrary for char {
     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        use ::std::char;
+        use std::char;
         const CHAR_END: u32 = 0x0011_000;
         // The size of the surrogate blocks
         const SURROGATES_START: u32 = 0xD800;
