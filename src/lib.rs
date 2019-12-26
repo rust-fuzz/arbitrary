@@ -23,10 +23,11 @@
 pub use derive_arbitrary::*;
 
 mod error;
-mod unstructured;
-
 pub use error::*;
-pub use unstructured::*;
+
+pub mod unstructured;
+#[doc(inline)]
+pub use unstructured::Unstructured;
 
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};

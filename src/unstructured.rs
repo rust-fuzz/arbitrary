@@ -6,8 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Wrappers around raw, unstructured bytes.
+
 use crate::{Arbitrary, Error, Result};
-use std::{iter, slice};
+use std::{iter, mem, ops, slice};
 
 /// A source of unstructured data with a finite size
 ///
@@ -113,6 +115,74 @@ impl<'a> Unstructured<'a> {
         self.len() == 0
     }
 
+    /// Generate an integer within the given range.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `range.start >= range.end`. That is, the given range must be
+    /// non-empty.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4], 4)
+    ///     .expect("`Unstructured::new` will never fail on non-empty input");
+    ///
+    /// let x: i32 = u.int_in_range(-5_000..=-1_000)
+    ///     .expect("constructed `u` with enough bytes to generate an `i32`");
+    ///
+    /// assert!(-5_000 <= x);
+    /// assert!(x <= -1_000);
+    /// ```
+    pub fn int_in_range<T>(&mut self, range: ops::RangeInclusive<T>) -> Result<T>
+    where
+        T: Int,
+    {
+        let (result, bytes_consumed) =
+            Self::int_in_range_impl(range, self.buffer[self.offset..].iter().cloned())?;
+        self.offset += bytes_consumed;
+        Ok(result)
+    }
+
+    fn int_in_range_impl<T>(
+        range: ops::RangeInclusive<T>,
+        mut bytes: impl Iterator<Item = u8>,
+    ) -> Result<(T, usize)>
+    where
+        T: Int,
+    {
+        let start = range.start();
+        let end = range.end();
+        assert!(
+            start < end,
+            "`arbitrary::Unstructured::int_in_range` requires a non-empty range"
+        );
+
+        let range: T::Widest = end.as_widest() - start.as_widest();
+        let mut result = T::Widest::ZERO;
+        let mut offset: usize = 0;
+
+        while offset < mem::size_of::<T>()
+            && (range >> T::Widest::from_usize(offset)) > T::Widest::ZERO
+        {
+            let byte = bytes.next().ok_or(Error::NotEnoughData)?;
+            result = (result << 8) | T::Widest::from_u8(byte);
+            offset += 1;
+        }
+
+        // Avoid division by zero.
+        if let Some(range) = range.checked_add(T::Widest::ONE) {
+            result = result % range;
+        }
+
+        Ok((
+            T::from_widest(start.as_widest().wrapping_add(result)),
+            offset,
+        ))
+    }
+
     /// Consume all of the rest of the remaining underlying bytes.
     ///
     /// Returns a non-empty iterator of all the remaining bytes.
@@ -164,4 +234,112 @@ impl Iterator for TakeRest<'_> {
     fn next(&mut self) -> Option<u8> {
         self.inner.next()
     }
+}
+
+/// A trait that is implemented for all of the primitive integers:
+///
+/// * `u8`
+/// * `u16`
+/// * `u32`
+/// * `u64`
+/// * `u128`
+/// * `usize`
+/// * `i8`
+/// * `i16`
+/// * `i32`
+/// * `i64`
+/// * `i128`
+/// * `isize`
+///
+/// Don't implement this trait yourself.
+pub trait Int:
+    Copy
+    + PartialOrd
+    + Ord
+    + ops::Sub<Self, Output = Self>
+    + ops::Rem<Self, Output = Self>
+    + ops::Shr<Self, Output = Self>
+    + ops::Shl<usize, Output = Self>
+    + ops::BitOr<Self, Output = Self>
+{
+    #[doc(hidden)]
+    type Widest: Int;
+
+    #[doc(hidden)]
+    const ZERO: Self;
+
+    #[doc(hidden)]
+    const ONE: Self;
+
+    #[doc(hidden)]
+    fn as_widest(self) -> Self::Widest;
+
+    #[doc(hidden)]
+    fn from_widest(w: Self::Widest) -> Self;
+
+    #[doc(hidden)]
+    fn from_u8(b: u8) -> Self;
+
+    #[doc(hidden)]
+    fn from_usize(u: usize) -> Self;
+
+    #[doc(hidden)]
+    fn checked_add(self, rhs: Self) -> Option<Self>;
+
+    #[doc(hidden)]
+    fn wrapping_add(self, rhs: Self) -> Self;
+}
+
+macro_rules! impl_int {
+    ( $( $ty:ty : $widest:ty ; )* ) => {
+        $(
+            impl Int for $ty {
+                type Widest = $widest;
+
+                const ZERO: Self = 0;
+
+                const ONE: Self = 1;
+
+                fn as_widest(self) -> Self::Widest {
+                    self as $widest
+                }
+
+                fn from_widest(w: Self::Widest) -> Self {
+                    let x = <$ty>::max_value().as_widest();
+                    (w % x) as Self
+                }
+
+                fn from_u8(b: u8) -> Self {
+                    b as Self
+                }
+
+                fn from_usize(u: usize) -> Self {
+                    u as Self
+                }
+
+                fn checked_add(self, rhs: Self) -> Option<Self> {
+                    <$ty>::checked_add(self, rhs)
+                }
+
+                fn wrapping_add(self, rhs: Self) -> Self {
+                    <$ty>::wrapping_add(self, rhs)
+                }
+            }
+        )*
+    }
+}
+
+impl_int! {
+    u8: u128;
+    u16: u128;
+    u32: u128;
+    u64: u128;
+    u128: u128;
+    usize: u128;
+    i8: i128;
+    i16: i128;
+    i32: i128;
+    i64: i128;
+    i128: i128;
+    isize: i128;
 }
