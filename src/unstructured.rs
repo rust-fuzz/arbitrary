@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use crate::{Arbitrary, Error, Result};
+use std::{iter, slice};
 
 /// A source of unstructured data with a finite size
 ///
@@ -63,5 +64,57 @@ impl<'a> Unstructured<'a> {
     /// in a vector.
     pub fn container_size(&mut self) -> Result<usize> {
         <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
+    }
+
+    /// Consume all of the rest of the remaining underlying bytes.
+    ///
+    /// Returns a non-empty iterator of all the remaining bytes.
+    ///
+    /// If the underlying data is already exhausted, returns an error.
+    ///
+    /// Any future requests for bytes will fail afterwards, since the underlying
+    /// data has already been exhausted.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3], 3)
+    ///     .expect("`Unstructured::new` will never fail when given non-empty data");
+    ///
+    /// let mut rem = u.take_rest()
+    ///     .expect("we know that `u` is non-empty, so `take_rest` cannot fail");
+    ///
+    /// assert_eq!(rem.next(), Some(1));
+    /// assert_eq!(rem.next(), Some(2));
+    /// assert_eq!(rem.next(), Some(3));
+    /// assert_eq!(rem.next(), None);
+    /// ```
+    pub fn take_rest(&mut self) -> Result<TakeRest<'a>> {
+        if self.offset >= self.buffer.len() {
+            Err(Error::NotEnoughData)
+        } else {
+            let offset = self.offset;
+            self.offset = self.buffer.len();
+            Ok(TakeRest {
+                inner: self.buffer[offset..].iter().cloned(),
+            })
+        }
+    }
+}
+
+/// An iterator of the remaining bytes returned by
+/// `Unstructured::take_rest`.
+pub struct TakeRest<'a> {
+    inner: iter::Cloned<slice::Iter<'a, u8>>,
+}
+
+impl Iterator for TakeRest<'_> {
+    type Item = u8;
+
+    #[inline]
+    fn next(&mut self) -> Option<u8> {
+        self.inner.next()
     }
 }
