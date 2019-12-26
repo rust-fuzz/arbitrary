@@ -8,7 +8,7 @@
 
 //! Wrappers around raw, unstructured bytes.
 
-use crate::{Error, Result};
+use crate::{Arbitrary, Error, Result};
 use std::{iter, mem, ops, slice};
 
 /// A source of unstructured data.
@@ -127,6 +127,44 @@ impl<'a> Unstructured<'a> {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Generate an arbitrary instance of `A`.
+    ///
+    /// This is simply a helper method that is equivalent to `<A as
+    /// Arbitrary>::arbitrary(self)`. This helper is a little bit more concise,
+    /// and can be used in situations where Rust's type inference will figure
+    /// out what `A` should be.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # fn main() -> arbitrary::Result<()> {
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// #[derive(Arbitrary)]
+    /// struct MyType {
+    ///     // ...
+    /// }
+    ///
+    /// fn do_stuff(value: MyType) {
+    /// #   let _ = value;
+    ///     // ...
+    /// }
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    ///
+    /// // Rust's type inference can figure out that `value` should be of type
+    /// // `MyType` here:
+    /// let value = u.arbitrary()?;
+    /// do_stuff(value);
+    /// # Ok(()) }
+    /// ```
+    pub fn arbitrary<A>(&mut self) -> Result<A>
+    where
+        A: Arbitrary,
+    {
+        <A as Arbitrary>::arbitrary(self)
     }
 
     /// Generate a size for container or collection, e.g. the number of elements
