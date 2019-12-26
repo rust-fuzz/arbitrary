@@ -758,47 +758,6 @@ impl<'a> Unstructured for FiniteBuffer<'a> {
     }
 }
 
-/// A source of unstructured data which returns the same data over and over again
-///
-/// This buffer acts as a ring buffer over the source of unstructured data,
-/// allowing for an infinite amount of not-very-random data.
-pub struct RingBuffer<'a> {
-    buffer: &'a [u8],
-    offset: usize,
-    max_len: usize,
-}
-
-impl<'a> RingBuffer<'a> {
-    /// Create a new RingBuffer
-    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self, BufferError> {
-        if buffer.is_empty() {
-            return Err(BufferError::EmptyInput);
-        }
-        Ok(RingBuffer {
-            buffer,
-            offset: 0,
-            max_len,
-        })
-    }
-}
-
-impl<'a> Unstructured for RingBuffer<'a> {
-    type Error = ();
-    fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        let b = [&self.buffer[self.offset..], &self.buffer[..self.offset]];
-        let it = ::std::iter::repeat(&b[..]).flat_map(|x| x).flat_map(|&x| x);
-        self.offset = (self.offset + buffer.len()) % self.buffer.len();
-        for (d, f) in buffer.iter_mut().zip(it) {
-            *d = *f;
-        }
-        Ok(())
-    }
-
-    fn container_size(&mut self) -> Result<usize, Self::Error> {
-        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -813,28 +772,6 @@ mod test {
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [3, 4]);
         assert!(rb.fill_buffer(&mut z).is_err());
-    }
-
-    #[test]
-    fn ring_buffer_fill_buffer() {
-        let x = [1, 2, 3, 4];
-        let mut rb = RingBuffer::new(&x, 2).unwrap();
-        let mut z = [0; 10];
-        rb.fill_buffer(&mut z).unwrap();
-        assert_eq!(z, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
-        rb.fill_buffer(&mut z).unwrap();
-        assert_eq!(z, [3, 4, 1, 2, 3, 4, 1, 2, 3, 4]);
-    }
-
-    #[test]
-    fn ring_buffer_container_size() {
-        let x = [1, 2, 3, 4, 5];
-        let mut rb = RingBuffer::new(&x, 11).unwrap();
-        assert_eq!(rb.container_size().unwrap(), 9);
-        assert_eq!(rb.container_size().unwrap(), 1);
-        assert_eq!(rb.container_size().unwrap(), 2);
-        assert_eq!(rb.container_size().unwrap(), 6);
-        assert_eq!(rb.container_size().unwrap(), 1);
     }
 
     #[test]
