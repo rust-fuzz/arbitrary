@@ -82,37 +82,51 @@ impl<'a> Unstructured<'a> {
         Unstructured { data }
     }
 
-    /// Fill a `buffer` with bytes from the underlying raw data.
-    ///
-    /// This should only be called within an `Arbitrary` implementation. This is
-    /// a very low-level operation. You should generally prefer calling nested
-    /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
-    /// `String::arbitrary` over using this method directly.
-    ///
-    /// If this `Unstructured` does not have enough data to fill the whole
-    /// `buffer`, an error is returned.
+    /// Get the number of remaining bytes of underlying data that are still
+    /// available.
     ///
     /// # Example
     ///
     /// ```
-    /// use arbitrary::Unstructured;
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3]);
+    ///
+    /// // Initially have three bytes of data.
+    /// assert_eq!(u.len(), 3);
+    ///
+    /// // Generating a `bool` consumes one byte from the underlying data, so
+    /// // we are left with two bytes afterwards.
+    /// let _ = bool::arbitrary(&mut u);
+    /// assert_eq!(u.len(), 2);
+    /// ```
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Is the underlying unstructured data exhausted?
+    ///
+    /// `unstructured.is_empty()` is the same as `unstructured.len() == 0`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
-    /// let mut buf = [0; 2];
-    /// assert!(u.fill_buffer(&mut buf).is_ok());
-    /// assert!(u.fill_buffer(&mut buf).is_ok());
-    /// assert!(u.fill_buffer(&mut buf).is_err());
+    /// // Initially, we are not empty.
+    /// assert!(!u.is_empty());
+    ///
+    /// // Generating a `u32` consumes all four bytes of the underlying data, so
+    /// // we become empty afterwards.
+    /// let _ = u32::arbitrary(&mut u);
+    /// assert!(u.is_empty());
     /// ```
-    pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        if self.data.len() < buffer.len() {
-            return Err(Error::NotEnoughData);
-        }
-
-        let (for_buf, rest) = self.data.split_at(buffer.len());
-        self.data = rest;
-        buffer.copy_from_slice(for_buf);
-        Ok(())
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Generate a size for container or collection, e.g. the number of elements
@@ -168,53 +182,6 @@ impl<'a> Unstructured<'a> {
                 Ok(size)
             }
         }
-    }
-
-    /// Get the number of remaining bytes of underlying data that are still
-    /// available.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use arbitrary::{Arbitrary, Unstructured};
-    ///
-    /// let mut u = Unstructured::new(&[1, 2, 3]);
-    ///
-    /// // Initially have three bytes of data.
-    /// assert_eq!(u.len(), 3);
-    ///
-    /// // Generating a `bool` consumes one byte from the underlying data, so
-    /// // we are left with two bytes afterwards.
-    /// let _ = bool::arbitrary(&mut u);
-    /// assert_eq!(u.len(), 2);
-    /// ```
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Is the underlying unstructured data exhausted?
-    ///
-    /// `unstructured.is_empty()` is the same as `unstructured.len() == 0`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use arbitrary::{Arbitrary, Unstructured};
-    ///
-    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
-    ///
-    /// // Initially, we are not empty.
-    /// assert!(!u.is_empty());
-    ///
-    /// // Generating a `u32` consumes all four bytes of the underlying data, so
-    /// // we become empty afterwards.
-    /// let _ = u32::arbitrary(&mut u);
-    /// assert!(u.is_empty());
-    /// ```
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 
     /// Generate an integer within the given range.
@@ -316,6 +283,39 @@ impl<'a> Unstructured<'a> {
         );
         let idx = self.int_in_range(0..=choices.len() - 1)?;
         Ok(&choices[idx])
+    }
+
+    /// Fill a `buffer` with bytes from the underlying raw data.
+    ///
+    /// This should only be called within an `Arbitrary` implementation. This is
+    /// a very low-level operation. You should generally prefer calling nested
+    /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
+    /// `String::arbitrary` over using this method directly.
+    ///
+    /// If this `Unstructured` does not have enough data to fill the whole
+    /// `buffer`, an error is returned.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    ///
+    /// let mut buf = [0; 2];
+    /// assert!(u.fill_buffer(&mut buf).is_ok());
+    /// assert!(u.fill_buffer(&mut buf).is_ok());
+    /// assert!(u.fill_buffer(&mut buf).is_err());
+    /// ```
+    pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
+        if self.data.len() < buffer.len() {
+            return Err(Error::NotEnoughData);
+        }
+
+        let (for_buf, rest) = self.data.split_at(buffer.len());
+        self.data = rest;
+        buffer.copy_from_slice(for_buf);
+        Ok(())
     }
 
     /// Consume all of the rest of the remaining underlying bytes.
