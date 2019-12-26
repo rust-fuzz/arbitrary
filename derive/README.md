@@ -1,6 +1,7 @@
-Arbitrary: the trait for generating structured from unstructured data.
+# `#[derive(Arbitrary)]`
 
-This is a crate that automatically derives `Arbitrary` instances for ADTs
-which consist entirely of other types implementing `Arbitrary`.
+This crate implements support for automatically deriving [the `Arbitrary`
+trait](https://docs.rs/arbitrary/*/arbitrary/trait.Arbitrary.html).
 
-Licensed under dual MIT/Apache at your choice.
+Don't depend on this crate directly, though. Instead, enable the `"derive"`
+feature of the `arbitrary` crate.
