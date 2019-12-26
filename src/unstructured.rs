@@ -286,6 +286,38 @@ impl<'a> Unstructured<'a> {
         ))
     }
 
+    /// Choose one of the given choices.
+    ///
+    /// This should only be used inside of `Arbitrary` implementations.
+    ///
+    /// Returns an error if there is not enough underlying data to make a
+    /// choice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `choices` is empty.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    ///
+    /// let choices = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    /// if let Ok(ch) = u.choose(&choices) {
+    ///     println!("chose {}", ch);
+    /// }
+    /// ```
+    pub fn choose<'b, T>(&mut self, choices: &'b [T]) -> Result<&'b T> {
+        assert!(
+            !choices.is_empty(),
+            "`arbitrary::Unstructured::choose` must be given a non-empty set of choices"
+        );
+        let idx = self.int_in_range(0..=choices.len() - 1)?;
+        Ok(&choices[idx])
+    }
+
     /// Consume all of the rest of the remaining underlying bytes.
     ///
     /// Returns a non-empty iterator of all the remaining bytes.
