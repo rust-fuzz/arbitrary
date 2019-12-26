@@ -16,19 +16,13 @@ use std::{iter, mem, ops, slice};
 /// This buffer is a finite source of unstructured data. Once the data is
 /// exhausted it stays exhausted.
 pub struct Unstructured<'a> {
-    buffer: &'a [u8],
-    offset: usize,
-    max_len: usize,
+    data: &'a [u8],
 }
 
 impl<'a> Unstructured<'a> {
     /// Create a new `Unstructured`.
-    pub fn new(buffer: &'a [u8]) -> Self {
-        Unstructured {
-            buffer,
-            offset: 0,
-            max_len: buffer.len(),
-        }
+    pub fn new(data: &'a [u8]) -> Self {
+        Unstructured { data }
     }
 
     /// Fill a `buffer` with bytes, forming the unstructured data from which
@@ -37,22 +31,25 @@ impl<'a> Unstructured<'a> {
     /// If this `Unstructured` cannot fill the whole `buffer`, an error is
     /// returned.
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        if (self.max_len - self.offset) >= buffer.len() {
-            let max = self.offset + buffer.len();
-            for (i, idx) in (self.offset..max).enumerate() {
-                buffer[i] = self.buffer[idx];
-            }
-            self.offset = max;
-            Ok(())
-        } else {
-            Err(Error::NotEnoughData)
+        if self.data.len() < buffer.len() {
+            return Err(Error::NotEnoughData);
         }
+
+        let (for_buf, rest) = self.data.split_at(buffer.len());
+        self.data = rest;
+        buffer.copy_from_slice(for_buf);
+        Ok(())
     }
 
     /// Generate a size for container or collection, e.g. the number of elements
     /// in a vector.
     pub fn container_size(&mut self) -> Result<usize> {
-        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
+        let n = usize::arbitrary(self)?;
+        if self.data.is_empty() {
+            Err(Error::NotEnoughData)
+        } else {
+            Ok(n % self.data.len())
+        }
     }
 
     /// Get the number of bytes of underlying data that is still available.
@@ -74,7 +71,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        self.buffer.len().saturating_sub(self.offset)
+        self.data.len()
     }
 
     /// Is the underlying unstructured data exhausted?
@@ -96,11 +93,15 @@ impl<'a> Unstructured<'a> {
     /// let _ = u32::arbitrary(&mut u);
     /// assert!(u.is_empty());
     /// ```
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Generate an integer within the given range.
+    ///
+    /// Do not use this to generate the size of a collection. Use
+    /// `container_size` instead.
     ///
     /// # Panics
     ///
@@ -124,9 +125,8 @@ impl<'a> Unstructured<'a> {
     where
         T: Int,
     {
-        let (result, bytes_consumed) =
-            Self::int_in_range_impl(range, self.buffer[self.offset..].iter().cloned())?;
-        self.offset += bytes_consumed;
+        let (result, bytes_consumed) = Self::int_in_range_impl(range, self.data.iter().cloned())?;
+        self.data = &self.data[bytes_consumed..];
         Ok(result)
     }
 
@@ -192,14 +192,12 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(rem.next(), None);
     /// ```
     pub fn take_rest(&mut self) -> Result<TakeRest<'a>> {
-        if self.offset >= self.buffer.len() {
+        if self.data.is_empty() {
             Err(Error::NotEnoughData)
         } else {
-            let offset = self.offset;
-            self.offset = self.buffer.len();
-            Ok(TakeRest {
-                inner: self.buffer[offset..].iter().cloned(),
-            })
+            let inner = self.data.iter().cloned();
+            self.data = &[];
+            Ok(TakeRest { inner })
         }
     }
 }
