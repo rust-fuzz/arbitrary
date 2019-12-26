@@ -8,7 +8,7 @@
 
 //! Wrappers around raw, unstructured bytes.
 
-use crate::{Arbitrary, Error, Result};
+use crate::{Error, Result};
 use std::{iter, mem, ops, slice};
 
 /// A source of unstructured data with a finite size
@@ -44,11 +44,23 @@ impl<'a> Unstructured<'a> {
     /// Generate a size for container or collection, e.g. the number of elements
     /// in a vector.
     pub fn container_size(&mut self) -> Result<usize> {
-        let n = usize::arbitrary(self)?;
-        if self.data.is_empty() {
-            Err(Error::NotEnoughData)
-        } else {
-            Ok(n % self.data.len())
+        match self.data.len().checked_sub(mem::size_of::<usize>()) {
+            None => return Err(Error::NotEnoughData),
+            Some(0) => {
+                self.data = &[];
+                return Ok(0);
+            }
+            Some(max_size) => {
+                // Take lengths from the end of the data, since the `libFuzzer` folks
+                // found that this lets fuzzers more efficiently explore the input
+                // space.
+                //
+                // https://github.com/rust-fuzz/libfuzzer-sys/blob/0c450753/libfuzzer/utils/FuzzedDataProvider.h#L92-L97
+                let (rest, for_size) = self.data.split_at(max_size);
+                self.data = rest;
+                let (size, _) = Self::int_in_range_impl(0..=max_size, for_size.iter().cloned())?;
+                Ok(size)
+            }
         }
     }
 
