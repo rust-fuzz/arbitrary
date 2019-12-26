@@ -14,6 +14,10 @@ documentation = "https://docs.rs/arbitrary/"
 [dependencies]
 derive_arbitrary = { version = "=0.2.0", path = "./derive", optional = true }
 
+[dev-dependencies]
+# Turn on the "derive" feature for doc tests.
+arbitrary = { version = "=0.2.0", path = ".", features = ["derive"] }
+
 [features]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]

@@ -11,25 +11,99 @@
 use crate::{Error, Result};
 use std::{iter, mem, ops, slice};
 
-/// A source of unstructured data with a finite size
+/// A source of unstructured data.
 ///
-/// This buffer is a finite source of unstructured data. Once the data is
-/// exhausted it stays exhausted.
+/// An `Unstructured` helps `Arbitrary` implementations interpret raw data
+/// (typically provided by a fuzzer) as a "DNA string" that describes how to
+/// construct the `Arbitrary` type. The goal is that a small change to the "DNA
+/// string" (the raw data wrapped by an `Unstructured`) results in a small
+/// change to the generated `Arbitrary` instance. This helps a fuzzer
+/// efficiently explore the `Arbitrary`'s input space.
+///
+/// `Unstructured` is deterministic: given the same raw data, the same series of
+/// API calls will return the same results (modulo system resource constraints,
+/// like running out of memory). However, `Unstructured` does not guarantee
+/// anything beyond that: it makes not guarantee that it will yield bytes from
+/// the underlying data in any particular order.
+///
+/// You shouldn't generally need to use an `Unstructured` unless you are writing
+/// a custom `Arbitrary` implementation by hand, instead of deriving it. Mostly,
+/// you should just be passing it through to nested `Arbitrary::arbitrary`
+/// calls.
+///
+/// # Example
+///
+/// Imagine you were writing a color conversion crate. You might want to write
+/// fuzz tests that take a random RGB color and assert various properties, run
+/// functions and make sure nothing panics, etc.
+///
+/// Below is what translating the fuzzer's raw input into an `Unstructured` and
+/// using that to generate an arbitrary RGB color might look like:
+///
+/// ```
+/// use arbitrary::{Arbitrary, Unstructured};
+///
+/// /// An RGB color.
+/// #[derive(Arbitrary)]
+/// pub struct Rgb {
+///     r: u8,
+///     g: u8,
+///     b: u8,
+/// }
+///
+/// // Get the raw bytes from the fuzzer.
+/// #   let get_input_from_fuzzer = || &[];
+/// let raw_data: &[u8] = get_input_from_fuzzer();
+///
+/// // Wrap it in an `Unstructured`.
+/// let mut unstructured = Unstructured::new(raw_data);
+///
+/// // Generate an `Rgb` color and run our checks.
+/// if let Ok(rgb) = Rgb::arbitrary(&mut unstructured) {
+/// #   let run_my_color_conversion_checks = |_| {};
+///     run_my_color_conversion_checks(rgb);
+/// }
+/// ```
 pub struct Unstructured<'a> {
     data: &'a [u8],
 }
 
 impl<'a> Unstructured<'a> {
-    /// Create a new `Unstructured`.
+    /// Create a new `Unstructured` from the given raw data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let u = Unstructured::new(&[1, 2, 3, 4]);
+    /// ```
     pub fn new(data: &'a [u8]) -> Self {
         Unstructured { data }
     }
 
-    /// Fill a `buffer` with bytes, forming the unstructured data from which
-    /// `Arbitrary` structured data shall be generated.
+    /// Fill a `buffer` with bytes from the underlying raw data.
     ///
-    /// If this `Unstructured` cannot fill the whole `buffer`, an error is
-    /// returned.
+    /// This should only be called within an `Arbitrary` implementation. This is
+    /// a very low-level operation. You should generally prefer calling nested
+    /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
+    /// `String::arbitrary` over using this method directly.
+    ///
+    /// If this `Unstructured` does not have enough data to fill the whole
+    /// `buffer`, an error is returned.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    ///
+    /// let mut buf = [0; 2];
+    /// assert!(u.fill_buffer(&mut buf).is_ok());
+    /// assert!(u.fill_buffer(&mut buf).is_ok());
+    /// assert!(u.fill_buffer(&mut buf).is_err());
+    /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
         if self.data.len() < buffer.len() {
             return Err(Error::NotEnoughData);
@@ -43,6 +117,38 @@ impl<'a> Unstructured<'a> {
 
     /// Generate a size for container or collection, e.g. the number of elements
     /// in a vector.
+    ///
+    /// This should only be called within an `Arbitrary` implementation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Result, Unstructured};
+    /// # pub struct MyContainer<T> { _t: std::marker::PhantomData<T> }
+    /// # impl<T> MyContainer<T> {
+    /// #     pub fn with_capacity(capacity: usize) -> Self { MyContainer { _t: std::marker::PhantomData } }
+    /// #     pub fn insert(&mut self, element: T) {}
+    /// # }
+    ///
+    /// impl<T> Arbitrary for MyContainer<T>
+    /// where
+    ///     T: Arbitrary,
+    /// {
+    ///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+    ///         // Get the size of the container to generate.
+    ///         let size = u.container_size()?;
+    ///
+    ///         // And then create a container of that size!
+    ///         let mut my_container = MyContainer::with_capacity(size);
+    ///         for _ in 0..size {
+    ///             let element = Arbitrary::arbitrary(u)?;
+    ///             my_container.insert(element);
+    ///         }
+    ///
+    ///         Ok(my_container)
+    ///     }
+    /// }
+    /// ```
     pub fn container_size(&mut self) -> Result<usize> {
         match self.data.len().checked_sub(mem::size_of::<usize>()) {
             None => return Err(Error::NotEnoughData),
@@ -64,7 +170,8 @@ impl<'a> Unstructured<'a> {
         }
     }
 
-    /// Get the number of bytes of underlying data that is still available.
+    /// Get the number of remaining bytes of underlying data that are still
+    /// available.
     ///
     /// # Example
     ///

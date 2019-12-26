@@ -10,10 +10,18 @@
 
 ## About
 
-The primary purpose of this crate is to provide some way to generate structures
-out of the raw byte buffers that various fuzzers produce. This allows you to
-combine structure-aware test case generation with coverage-guided,
-mutation-based fuzzers.
+The `Arbitrary` crate lets you construct arbitrary instance of a type.
+
+This crate is primarily intended to be combined with a fuzzer like [libFuzzer
+and `cargo-fuzz`](https://github.com/rust-fuzz/cargo-fuzz) or
+[AFL](https://github.com/rust-fuzz/afl.rs), and to help you turn the raw,
+untyped byte buffers that they produce into well-typed, valid, structured
+values. This allows you to combine structure-aware test case generation with
+coverage-guided, mutation-based fuzzers.
+
+## Documentation
+
+[**Read the API documentation on `docs.rs`!](docs.rs/arbitrary)
 
 ## Example
 
@@ -23,12 +31,41 @@ you could take arbitrary `Rgb` instances in a test function that asserts some
 property (for example, asserting that RGB converted to HSL and converted back to
 RGB always ends up exactly where we started).
 
-You can write an `Arbitrary` implementation by hand:
+### Automatically Deriving `Arbitrary`
+
+Automatically deriving `Arbitrary` requires you to enable the `"derive"` cargo
+feature:
+
+```toml
+# Cargo.toml
+
+[dependencies]
+arbitrary = { version = "0.2.0", features = ["derive"] }
+```
+
+And then you can simply add `#[derive(Arbitrary)]` annotations to your types:
 
 ```rust
 // rgb.rs
 
-use arbitrary::{Arbitrary, Unstructured};
+use arbitrary::Arbitrary;
+
+#[derive(Arbitrary)]
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+```
+
+### Implementing `Arbitrary` By Hand
+
+Alternatively, you can write an `Arbitrary` implementation by hand:
+
+```rust
+// rgb.rs
+
+use arbitrary::{Arbitrary, Result, Unstructured};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Rgb {
@@ -38,39 +75,12 @@ pub struct Rgb {
 }
 
 impl Arbitrary for Rgb {
-    fn arbitrary<U>(raw: &mut U) -> Result<Self, U::Error>
-    where
-        U: Unstructured + ?Sized>,
-    {
-        let r = u8::arbitrary(raw)?;
-        let g = u8::arbitrary(raw)?;
-        let b = u8::arbitrary(raw)?;
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+        let r = u8::arbitrary(u)?;
+        let g = u8::arbitrary(u)?;
+        let b = u8::arbitrary(u)?;
         Ok(Rgb { r, g, b })
     }
-}
-```
-
-Or, equivalently, you can enable the `"derive"` cargo feature and have the
-custom derive implement it for you:
-
-```toml
-# Cargo.toml
-
-[dependencies]
-arbitrary = { version = "0.2.0", features = ["derive"] }
-```
-
-```rust
-// rgb.rs
-
-use arbitrary::Arbitrary;
-
-#[derive(Copy, Clone, Debug, Arbitrary)]
-//                           ^^^^^^^^^
-pub struct Rgb {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
 }
 ```
 

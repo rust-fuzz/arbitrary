@@ -6,11 +6,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! The Arbitrary trait crate
+//! The `Arbitrary` trait crate.
 //!
-//! This trait provides an `Arbitrary` trait to produce well-typed data from
-//! byte buffers. The crate additionally provides different flavors of byte
-//! buffers with useful semantics.
+//! This trait provides an [`Arbitrary`](./trait.Arbitrary.html) trait to
+//! produce well-typed, structured values, from raw, byte buffers. It is
+//! generally intended to be used with fuzzers like AFL or libFuzzer. See the
+//! [`Arbitrary`](./trait.Arbitrary.html) trait's documentation for details on
+//! automatically deriving, implementing, and/or using the trait.
+
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
@@ -19,7 +22,7 @@
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
 
-#[cfg(feature = "derive")]
+#[cfg(feature = "derive_arbitrary")]
 pub use derive_arbitrary::*;
 
 mod error;
@@ -49,13 +52,137 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
     Box::new(iter::once(val))
 }
 
-/// A trait to generate and shrink arbitrary types from an [`Unstructured`] pool
-/// of bytes.
+/// Generate arbitrary structured values from raw, unstructured data.
+///
+/// The `Arbitrary` trait allows you to generate valid structured values, like
+/// `HashMap`s, or ASTs, or `MyTomlConfig`, or any other data structure from
+/// raw, unstructured bytes provided by a fuzzer. It also features built-in
+/// shrinking, so that if you find a test case that triggers a bug, you can find
+/// the smallest, most easiest-to-understand test case that still triggers that
+/// bug.
+///
+/// # Deriving `Arbitrary`
+///
+/// Using the custom derive requires that you enable the `"derive"` cargo
+/// feature in your `Cargo.toml`:
+///
+/// ```toml
+/// [dependencies]
+/// arbitrary = { version = "0.2.0", features = ["derive"] }
+/// ```
+///
+/// Then, you add the `#[derive(Arbitrary)]` annotation to your `struct` or
+/// `enum` type definition:
+///
+/// ```
+/// use arbitrary::Arbitrary;
+/// use std::collections::HashSet;
+///
+/// #[derive(Arbitrary)]
+/// pub struct AddressBook {
+///     friends: HashSet<Friend>,
+/// }
+///
+/// #[derive(Arbitrary, Hash, Eq, PartialEq)]
+/// pub enum Friend {
+///     Buddy { name: String },
+///     Pal { age: usize },
+/// }
+/// ```
+///
+/// Every member of the `struct` or `enum` must also implement `Arbitrary`.
+///
+/// # Implementing `Arbitrary` By Hand
+///
+/// Implementing `Arbitrary` mostly involves nested calls to other `Arbitrary`
+/// arbitrary implementations for each of your `struct` or `enum`'s members. But
+/// sometimes you need some amount of raw data, or you need to generate a
+/// variably-sized container type, or you something of that sort. The
+/// [`Unstructured`][crate::Unstructured] type helps you with these tasks.
+///
+/// ```
+/// use arbitrary::{Arbitrary, Result, Unstructured};
+/// # pub struct MyContainer<T> { _t: std::marker::PhantomData<T> }
+/// # impl<T> MyContainer<T> {
+/// #     pub fn with_capacity(capacity: usize) -> Self { MyContainer { _t: std::marker::PhantomData } }
+/// #     pub fn insert(&mut self, element: T) {}
+/// # }
+///
+/// impl<T> Arbitrary for MyContainer<T>
+/// where
+///     T: Arbitrary,
+/// {
+///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+///         // Get the size of the container to generate.
+///         let size = u.container_size()?;
+///
+///         // And then create a container of that size!
+///         let mut my_container = MyContainer::with_capacity(size);
+///         for _ in 0..size {
+///             let element = Arbitrary::arbitrary(u)?;
+///             my_container.insert(element);
+///         }
+///
+///         Ok(my_container)
+///     }
+/// }
+/// ```
 pub trait Arbitrary: Sized + 'static {
-    /// Generate arbitrary structured data from unstructured data.
+    /// Generate an arbitrary value of `Self` from the given unstructured data.
+    ///
+    /// Calling `Arbitrary::arbitrary` requires that you have some raw data,
+    /// perhaps given to you by a fuzzer like AFL or libFuzzer. You wrap this
+    /// raw data in an `Unstructured`, and then you can call `<MyType as
+    /// Arbitrary>::arbitrary` to construct an arbitrary instance of `MyType`
+    /// from that unstuctured data.
+    ///
+    /// Implementation may return an error if there is not enough data to
+    /// construct a full instance of `Self`. This is generally OK: it is better
+    /// to exit early and get the fuzzer to provide more input data, than it is
+    /// to generate default values in place of the missing data, which would
+    /// bias the distribution of generated values, and ultimately make fuzzing
+    /// less efficient.
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// #[derive(Arbitrary)]
+    /// pub struct MyType {
+    ///     // ...
+    /// }
+    ///
+    /// // Get the raw data from the fuzzer or wherever else.
+    /// # let get_raw_data_from_fuzzer = || &[];
+    /// let raw_data: &[u8] = get_raw_data_from_fuzzer();
+    ///
+    /// // Wrap that raw data in an `Unstructured`.
+    /// let mut unstructured = Unstructured::new(raw_data);
+    ///
+    /// // Generate an arbitrary instance of `MyType` and do stuff with it.
+    /// if let Ok(value) = MyType::arbitrary(&mut unstructured) {
+    /// #   let do_stuff = |_| {};
+    ///     do_stuff(value);
+    /// }
+    /// ```
+    ///
+    /// See also the documentation for [`Unstructured`][crate::Unstructured].
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self>;
 
-    /// Generate derived values which are “smaller” than the original one.
+    /// Generate an iterator of derived values which are "smaller" than the
+    /// original `self` instance.
+    ///
+    /// You can use this to help find the smallest test case that reproduces a
+    /// bug.
+    ///
+    /// Using `#[derive(Arbitrary)]` will automatically implement shrinking for
+    /// your type.
+    ///
+    /// However, if you are implementing `Arbirary` by hand and you want support
+    /// for shrinking your type, you must override the default provided
+    /// implementation of `shrink`, which just returns an empty iterator. You
+    /// should try pretty hard to have your `shrink` implementation return a
+    /// *lazy* iterator: one that computes the next value as it is needed,
+    /// rather than computing them up front when `shrink` is first called.
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         empty()
     }
