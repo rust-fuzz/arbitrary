@@ -2,13 +2,13 @@
 
 use arbitrary::*;
 
-fn finite_buffer(input: &[u8]) -> FiniteBuffer {
+fn unstructured(input: &[u8]) -> Unstructured {
     assert!(!input.is_empty());
-    FiniteBuffer::new(input, input.len()).expect("can create FiniteBuffer OK")
+    Unstructured::new(input, input.len()).expect("can create Unstructured OK")
 }
 
 fn arbitrary_from<T: Arbitrary>(input: &[u8]) -> T {
-    let mut buf = finite_buffer(input);
+    let mut buf = unstructured(input);
     T::arbitrary(&mut buf).expect("can create arbitrary instance OK")
 }
 
