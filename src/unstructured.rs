@@ -66,6 +66,53 @@ impl<'a> Unstructured<'a> {
         <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
     }
 
+    /// Get the number of bytes of underlying data that is still available.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3], 3)
+    ///     .expect("`Unstructured::new` will never fail on non-empty input");
+    ///
+    /// // Initially have three bytes of data.
+    /// assert_eq!(u.len(), 3);
+    ///
+    /// // Generating a `bool` consumes one byte from the underlying data, so
+    /// // we are left with two bytes afterwards.
+    /// let _ = bool::arbitrary(&mut u);
+    /// assert_eq!(u.len(), 2);
+    /// ```
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.buffer.len().saturating_sub(self.offset)
+    }
+
+    /// Is the underlying unstructured data exhausted?
+    ///
+    /// `unstructured.is_empty()` is the same as `unstructured.len() == 0`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4], 4)
+    ///     .expect("`Unstructured::new` will never fail on non-empty input");
+    ///
+    /// // Initially, we are not empty.
+    /// assert!(!u.is_empty());
+    ///
+    /// // Generating a `u32` consumes all four bytes of the underlying data, so
+    /// // we become empty afterwards.
+    /// let _ = u32::arbitrary(&mut u);
+    /// assert!(u.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Consume all of the rest of the remaining underlying bytes.
     ///
     /// Returns a non-empty iterator of all the remaining bytes.
