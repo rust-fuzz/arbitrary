@@ -687,7 +687,7 @@ mod test {
     #[test]
     fn finite_buffer_fill_buffer() {
         let x = [1, 2, 3, 4];
-        let mut rb = Unstructured::new(&x, 10).unwrap();
+        let mut rb = Unstructured::new(&x);
         let mut z = [0; 2];
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [1, 2]);
@@ -699,7 +699,7 @@ mod test {
     #[test]
     fn arbitrary_for_integers() {
         let x = [1, 2, 3, 4];
-        let mut buf = Unstructured::new(&x, x.len()).unwrap();
+        let mut buf = Unstructured::new(&x);
         let expected = 1 | (2 << 8) | (3 << 16) | (4 << 24);
         let actual = i32::arbitrary(&mut buf).unwrap();
         assert_eq!(expected, actual);

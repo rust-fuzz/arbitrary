@@ -22,26 +22,13 @@ pub struct Unstructured<'a> {
 }
 
 impl<'a> Unstructured<'a> {
-    /// Create a new Unstructured
-    ///
-    /// If the passed `buffer` is shorter than max_len the total number of bytes
-    /// will be the bytes available in `buffer`. If `buffer` is longer than
-    /// `max_len` the buffer will be trimmed.
-    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self> {
-        let buf: &'a [u8] = if buffer.len() > max_len {
-            &buffer[..max_len]
-        } else {
-            // This branch is hit if buffer is shorter than max_len. We might
-            // choose to make this an error condition instead of, potentially,
-            // surprising folks with less bytes.
-            buffer
-        };
-
-        Ok(Unstructured {
-            buffer: buf,
+    /// Create a new `Unstructured`.
+    pub fn new(buffer: &'a [u8]) -> Self {
+        Unstructured {
+            buffer,
             offset: 0,
-            max_len: buf.len(),
-        })
+            max_len: buffer.len(),
+        }
     }
 
     /// Fill a `buffer` with bytes, forming the unstructured data from which
@@ -75,8 +62,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     /// use arbitrary::{Arbitrary, Unstructured};
     ///
-    /// let mut u = Unstructured::new(&[1, 2, 3], 3)
-    ///     .expect("`Unstructured::new` will never fail on non-empty input");
+    /// let mut u = Unstructured::new(&[1, 2, 3]);
     ///
     /// // Initially have three bytes of data.
     /// assert_eq!(u.len(), 3);
@@ -100,8 +86,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     /// use arbitrary::{Arbitrary, Unstructured};
     ///
-    /// let mut u = Unstructured::new(&[1, 2, 3, 4], 4)
-    ///     .expect("`Unstructured::new` will never fail on non-empty input");
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
     /// // Initially, we are not empty.
     /// assert!(!u.is_empty());
@@ -127,8 +112,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     /// use arbitrary::{Arbitrary, Unstructured};
     ///
-    /// let mut u = Unstructured::new(&[1, 2, 3, 4], 4)
-    ///     .expect("`Unstructured::new` will never fail on non-empty input");
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
     /// let x: i32 = u.int_in_range(-5_000..=-1_000)
     ///     .expect("constructed `u` with enough bytes to generate an `i32`");
@@ -197,8 +181,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     /// use arbitrary::Unstructured;
     ///
-    /// let mut u = Unstructured::new(&[1, 2, 3], 3)
-    ///     .expect("`Unstructured::new` will never fail when given non-empty data");
+    /// let mut u = Unstructured::new(&[1, 2, 3]);
     ///
     /// let mut rem = u.take_rest()
     ///     .expect("we know that `u` is non-empty, so `take_rest` cannot fail");

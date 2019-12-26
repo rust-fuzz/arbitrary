@@ -14,11 +14,10 @@ enum MyEnum {
 fn main() {
     let raw = b"This is some raw, unstructured data!";
 
-    let mut buf = Unstructured::new(raw, raw.len())
-        .expect("`raw` is non-empty so creating an `Unstructured` cannot fail");
+    let mut unstructured = Unstructured::new(raw);
 
-    let instance = MyEnum::arbitrary(&mut buf)
-        .expect("`raw` has enough data to create all variants of `MyEnum`");
+    let instance = MyEnum::arbitrary(&mut unstructured)
+        .expect("`unstructured` has enough underlying data to create all variants of `MyEnum`");
 
     println!("Here is an arbitrary enum: {:?}", instance);
 }

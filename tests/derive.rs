@@ -2,13 +2,8 @@
 
 use arbitrary::*;
 
-fn unstructured(input: &[u8]) -> Unstructured {
-    assert!(!input.is_empty());
-    Unstructured::new(input, input.len()).expect("can create Unstructured OK")
-}
-
 fn arbitrary_from<T: Arbitrary>(input: &[u8]) -> T {
-    let mut buf = unstructured(input);
+    let mut buf = Unstructured::new(input);
     T::arbitrary(&mut buf).expect("can create arbitrary instance OK")
 }
 
