@@ -32,6 +32,8 @@ pub mod unstructured;
 #[doc(inline)]
 pub use unstructured::Unstructured;
 
+pub mod size_hint;
+
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
@@ -168,6 +170,30 @@ pub trait Arbitrary: Sized + 'static {
     /// See also the documentation for [`Unstructured`][crate::Unstructured].
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self>;
 
+    /// Get a size hint for how many bytes out of an `Unstructured` this type
+    /// needs to construct itself.
+    ///
+    /// This is useful for determining how many elements we should insert when
+    /// creating an arbitrary collection.
+    ///
+    /// The return value is similar to
+    /// [`Iterator::size_hint`][iterator-size-hint]: it returns a tuple where
+    /// the first element is a lower bound on the number of bytes required, and
+    /// the second element is an optional upper bound.
+    ///
+    /// The default implementation return `(0, None)` which is correct for any
+    /// type, but not ultimately that useful. Using `#[derive(Arbitrary)]` will
+    /// create a better implementation. If you are writing an `Arbitrary`
+    /// implementation by hand, and your type can be part of a dynamically sized
+    /// collection (such as `Vec`), you are strongly encouraged to override this
+    /// default with a better implementation. The
+    /// [`size_hint`][crate::size_hint] module will help with this task.
+    ///
+    /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
+    fn size_hint() -> (usize, Option<usize>) {
+        (0, None)
+    }
+
     /// Generate an iterator of derived values which are "smaller" than the
     /// original `self` instance.
     ///
@@ -192,11 +218,19 @@ impl Arbitrary for () {
     fn arbitrary(_: &mut Unstructured<'_>) -> Result<Self> {
         Ok(())
     }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
 }
 
 impl Arbitrary for bool {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(<u8 as Arbitrary>::arbitrary(u)? & 1 == 1)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <u8 as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -216,6 +250,11 @@ macro_rules! impl_arbitrary_for_integers {
                         x |= buf[i] as $unsigned << (i * 8);
                     }
                     Ok(x as $ty)
+                }
+
+                fn size_hint() -> (usize, Option<usize>) {
+                    let n = mem::size_of::<$ty>();
+                    (n, Some(n))
                 }
 
                 fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -258,6 +297,10 @@ macro_rules! impl_arbitrary_for_floats {
             impl Arbitrary for $ty {
                 fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                     Ok(Self::from_bits(<$unsigned as Arbitrary>::arbitrary(u)?))
+                }
+
+                fn size_hint() -> (usize, Option<usize>) {
+                    <$unsigned as Arbitrary>::size_hint()
                 }
 
                 fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -317,6 +360,10 @@ impl Arbitrary for char {
         }
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <u32 as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let x = *self as u32;
         Box::new(x.shrink().filter_map(|x| {
@@ -329,6 +376,10 @@ impl Arbitrary for char {
 impl Arbitrary for AtomicBool {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <bool as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -345,6 +396,10 @@ impl Arbitrary for AtomicIsize {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <isize as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let x = self.load(Ordering::SeqCst);
         Box::new(x.shrink().map(Self::new))
@@ -356,6 +411,10 @@ impl Arbitrary for AtomicUsize {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <usize as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let x = self.load(Ordering::SeqCst);
         Box::new(x.shrink().map(Self::new))
@@ -365,9 +424,16 @@ impl Arbitrary for AtomicUsize {
 impl Arbitrary for Duration {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(Self::new(
-            Arbitrary::arbitrary(u)?,
+            <u64 as Arbitrary>::arbitrary(u)?,
             <u32 as Arbitrary>::arbitrary(u)? % 1_000_000_000,
         ))
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(
+            <u64 as Arbitrary>::size_hint(),
+            <u32 as Arbitrary>::size_hint(),
+        )
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -381,11 +447,18 @@ impl Arbitrary for Duration {
 
 impl<A: Arbitrary> Arbitrary for Option<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        Ok(if Arbitrary::arbitrary(u)? {
+        Ok(if <bool as Arbitrary>::arbitrary(u)? {
             Some(Arbitrary::arbitrary(u)?)
         } else {
             None
         })
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(
+            <bool as Arbitrary>::size_hint(),
+            <A as Arbitrary>::size_hint(),
+        )
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -399,17 +472,24 @@ impl<A: Arbitrary> Arbitrary for Option<A> {
 
 impl<A: Arbitrary, B: Arbitrary> Arbitrary for std::result::Result<A, B> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        Ok(if Arbitrary::arbitrary(u)? {
-            Ok(Arbitrary::arbitrary(u)?)
+        Ok(if <bool as Arbitrary>::arbitrary(u)? {
+            Ok(<A as Arbitrary>::arbitrary(u)?)
         } else {
-            Err(Arbitrary::arbitrary(u)?)
+            Err(<B as Arbitrary>::arbitrary(u)?)
         })
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(
+            <bool as Arbitrary>::size_hint(),
+            crate::size_hint::or(<A as Arbitrary>::size_hint(), <B as Arbitrary>::size_hint()),
+        )
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         match *self {
             Ok(ref a) => Box::new(a.shrink().map(Ok)),
-            Err(ref a) => Box::new(a.shrink().map(Err)),
+            Err(ref b) => Box::new(b.shrink().map(Err)),
         }
     }
 }
@@ -422,6 +502,13 @@ macro_rules! arbitrary_tuple {
         impl<$x: Arbitrary, $($xs: Arbitrary),*> Arbitrary for ($x, $($xs),*) {
             fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                 Ok((Arbitrary::arbitrary(u)?, $($xs::arbitrary(u)?),*))
+            }
+
+            fn size_hint() -> (usize, Option<usize>) {
+                crate::size_hint::and_all(&[
+                    <$x as Arbitrary>::size_hint(),
+                    $( <$xs as Arbitrary>::size_hint() ),*
+                ])
             }
 
             #[allow(non_snake_case)]
@@ -446,6 +533,13 @@ macro_rules! arbitrary_array {
                 Ok([
                     Arbitrary::arbitrary(u)?,
                     $(<$ts as Arbitrary>::arbitrary(u)?),*
+                ])
+            }
+
+            fn size_hint() -> (usize, Option<usize>) {
+                crate::size_hint::and_all(&[
+                    <$t as Arbitrary>::size_hint(),
+                    $( <$ts as Arbitrary>::size_hint() ),*
                 ])
             }
 
@@ -514,6 +608,10 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         shrink_collection(self.iter(), |x| x.shrink())
     }
@@ -523,6 +621,10 @@ impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -538,6 +640,10 @@ impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let collections = shrink_collection(self.iter(), |v| v.shrink());
         Box::new(collections.map(|entries| entries.into_iter().collect()))
@@ -550,6 +656,10 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let collections = shrink_collection(self.iter(), |v| v.shrink());
         Box::new(collections.map(|entries| entries.into_iter().collect()))
@@ -560,6 +670,10 @@ impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -575,6 +689,10 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let collections = shrink_collection(self.iter(), |v| v.shrink());
         Box::new(collections.map(|entries| entries.into_iter().collect()))
@@ -587,6 +705,10 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let collections = shrink_collection(self.iter(), |v| v.shrink());
         Box::new(collections.map(|entries| entries.into_iter().collect()))
@@ -597,6 +719,10 @@ impl<A: Arbitrary> Arbitrary for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -612,6 +738,10 @@ where
 {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Cow::Owned)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <<A as ToOwned>::Owned as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -630,6 +760,10 @@ impl Arbitrary for String {
             .collect()
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let collections = shrink_collection(self.chars(), |ch| ch.shrink());
         Box::new(collections.map(|chars| chars.into_iter().collect()))
@@ -644,6 +778,10 @@ impl Arbitrary for CString {
         })
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <Vec<u8> as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let collections = shrink_collection(self.as_bytes().iter(), |b| {
             Box::new(b.shrink().filter(|&b| b != 0))
@@ -655,6 +793,10 @@ impl Arbitrary for CString {
 impl Arbitrary for OsString {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(From::from)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <String as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -671,6 +813,10 @@ impl Arbitrary for PathBuf {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <OsString as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let s = self.clone().into_os_string();
         Box::new(s.shrink().map(From::from))
@@ -680,6 +826,10 @@ impl Arbitrary for PathBuf {
 impl<A: Arbitrary> Arbitrary for Box<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -692,6 +842,10 @@ impl<A: Arbitrary> Arbitrary for Box<[A]> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <Vec<A> as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         Box::new(shrink_collection(self.iter(), |x| x.shrink()).map(|v| v.into_boxed_slice()))
     }
@@ -700,6 +854,10 @@ impl<A: Arbitrary> Arbitrary for Box<[A]> {
 impl Arbitrary for Box<str> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <String as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -726,6 +884,10 @@ impl<A: Arbitrary> Arbitrary for Arc<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
+    }
+
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         Box::new((&**self).shrink().map(Self::new))
     }
@@ -734,6 +896,10 @@ impl<A: Arbitrary> Arbitrary for Arc<A> {
 impl<A: Arbitrary> Arbitrary for Rc<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -746,6 +912,10 @@ impl<A: Arbitrary> Arbitrary for Cell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
+    }
+
     // Note: can't implement `shrink` without either more trait bounds on `A`
     // (copy or default) or `Cell::update`:
     // https://github.com/rust-lang/rust/issues/50186
@@ -754,6 +924,10 @@ impl<A: Arbitrary> Arbitrary for Cell<A> {
 impl<A: Arbitrary> Arbitrary for RefCell<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -767,6 +941,10 @@ impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
+    }
+
     // We can't non-trivially (i.e. not an empty iterator) implement `shrink` in
     // a safe way, since we don't have a safe way to get the inner value.
 }
@@ -774,6 +952,10 @@ impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
 impl<A: Arbitrary> Arbitrary for Mutex<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -788,17 +970,33 @@ impl<A: Arbitrary> Arbitrary for iter::Empty<A> {
     fn arbitrary(_: &mut Unstructured<'_>) -> Result<Self> {
         Ok(iter::empty())
     }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
+
+    // Nothing to shrink here.
 }
 
 impl<A: Arbitrary> Arbitrary for ::std::marker::PhantomData<A> {
     fn arbitrary(_: &mut Unstructured<'_>) -> Result<Self> {
         Ok(::std::marker::PhantomData)
     }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
+
+    // Nothing to shrink here.
 }
 
 impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
+    }
+
+    fn size_hint() -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint()
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -934,6 +1132,15 @@ mod test {
             .iter()
             .map(|s| CString::new(s.to_vec()).unwrap())
             .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn size_hint_for_tuples() {
+        assert_eq!((7, Some(7)), <(bool, u16, i32) as Arbitrary>::size_hint());
+        assert_eq!(
+            (1 + mem::size_of::<usize>(), None),
+            <(u8, Vec<u8>) as Arbitrary>::size_hint()
         );
     }
 }
