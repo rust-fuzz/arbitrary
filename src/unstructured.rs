@@ -9,7 +9,7 @@
 //! Wrappers around raw, unstructured bytes.
 
 use crate::{Arbitrary, Error, Result};
-use std::{iter, mem, ops, slice};
+use std::{mem, ops};
 
 /// A source of unstructured data.
 ///
@@ -358,12 +358,12 @@ impl<'a> Unstructured<'a> {
 
     /// Consume all of the rest of the remaining underlying bytes.
     ///
-    /// Returns a non-empty iterator of all the remaining bytes.
+    /// Returns a slice of all the remaining, unconsumed bytes.
     ///
     /// If the underlying data is already exhausted, returns an error.
     ///
-    /// Any future requests for bytes will fail afterwards, since the underlying
-    /// data has already been exhausted.
+    /// Any subsequent requests for bytes will fail afterwards, since the
+    /// underlying data will have already been exhausted.
     ///
     /// # Example
     ///
@@ -372,37 +372,17 @@ impl<'a> Unstructured<'a> {
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3]);
     ///
-    /// let mut rem = u.take_rest()
+    /// let mut remaining = u.take_rest()
     ///     .expect("we know that `u` is non-empty, so `take_rest` cannot fail");
     ///
-    /// assert_eq!(rem.next(), Some(1));
-    /// assert_eq!(rem.next(), Some(2));
-    /// assert_eq!(rem.next(), Some(3));
-    /// assert_eq!(rem.next(), None);
+    /// assert_eq!(remaining, [1, 2, 3]);
     /// ```
-    pub fn take_rest(&mut self) -> Result<TakeRest<'a>> {
+    pub fn take_rest(&mut self) -> Result<&'a [u8]> {
         if self.data.is_empty() {
             Err(Error::NotEnoughData)
         } else {
-            let inner = self.data.iter().cloned();
-            self.data = &[];
-            Ok(TakeRest { inner })
+            Ok(mem::replace(&mut self.data, &[]))
         }
-    }
-}
-
-/// An iterator of the remaining bytes returned by
-/// `Unstructured::take_rest`.
-pub struct TakeRest<'a> {
-    inner: iter::Cloned<slice::Iter<'a, u8>>,
-}
-
-impl Iterator for TakeRest<'_> {
-    type Item = u8;
-
-    #[inline]
-    fn next(&mut self) -> Option<u8> {
-        self.inner.next()
     }
 }
 
