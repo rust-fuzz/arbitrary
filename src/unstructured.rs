@@ -167,6 +167,56 @@ impl<'a> Unstructured<'a> {
         <A as Arbitrary>::arbitrary(self)
     }
 
+    /// Get the number of elements to insert when building up a collection of
+    /// arbitrary `ElementType`s.
+    ///
+    /// This uses the [`<ElementType as
+    /// Arbitrary>::size_hint`][crate::Arbitrary::size_hint] method to smartly
+    /// choose a length such that we most likely have enough underlying bytes to
+    /// construct that many arbitrary `ElementType`s.
+    ///
+    /// This should only be called within an `Arbitrary` implementation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Result, Unstructured};
+    /// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
+    /// # impl<T> MyCollection<T> {
+    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
+    /// #     pub fn insert(&mut self, element: T) {}
+    /// # }
+    ///
+    /// impl<T> Arbitrary for MyCollection<T>
+    /// where
+    ///     T: Arbitrary,
+    /// {
+    ///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+    ///         // Get the number of `T`s we should insert into our collection.
+    ///         let len = u.arbitrary_len::<T>()?;
+    ///
+    ///         // And then create a collection of that length!
+    ///         let mut my_collection = MyCollection::with_capacity(len);
+    ///         for _ in 0..len {
+    ///             let element = T::arbitrary(u)?;
+    ///             my_collection.insert(element);
+    ///         }
+    ///
+    ///         Ok(my_collection)
+    ///     }
+    /// }
+    /// ```
+    pub fn arbitrary_len<ElementType>(&mut self) -> Result<usize>
+    where
+        ElementType: Arbitrary,
+    {
+        let byte_size = self.container_size()?;
+        let (lower, upper) = <ElementType as Arbitrary>::size_hint();
+        let elem_size = upper.unwrap_or_else(|| lower * 2);
+        let elem_size = std::cmp::max(1, elem_size);
+        Ok(byte_size / elem_size)
+    }
+
     /// Generate a size for container or collection, e.g. the number of elements
     /// in a vector.
     ///
