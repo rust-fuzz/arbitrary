@@ -99,33 +99,33 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 /// Implementing `Arbitrary` mostly involves nested calls to other `Arbitrary`
 /// arbitrary implementations for each of your `struct` or `enum`'s members. But
 /// sometimes you need some amount of raw data, or you need to generate a
-/// variably-sized container type, or you something of that sort. The
+/// variably-sized collection type, or you something of that sort. The
 /// [`Unstructured`][crate::Unstructured] type helps you with these tasks.
 ///
 /// ```
 /// use arbitrary::{Arbitrary, Result, Unstructured};
-/// # pub struct MyContainer<T> { _t: std::marker::PhantomData<T> }
-/// # impl<T> MyContainer<T> {
-/// #     pub fn with_capacity(capacity: usize) -> Self { MyContainer { _t: std::marker::PhantomData } }
+/// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
+/// # impl<T> MyCollection<T> {
+/// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
 /// #     pub fn insert(&mut self, element: T) {}
 /// # }
 ///
-/// impl<T> Arbitrary for MyContainer<T>
+/// impl<T> Arbitrary for MyCollection<T>
 /// where
 ///     T: Arbitrary,
 /// {
 ///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-///         // Get the size of the container to generate.
-///         let size = u.container_size()?;
+///         // Get the number of `T`s we should insert into our collection.
+///         let len = u.arbitrary_len::<T>()?;
 ///
-///         // And then create a container of that size!
-///         let mut my_container = MyContainer::with_capacity(size);
-///         for _ in 0..size {
-///             let element = Arbitrary::arbitrary(u)?;
-///             my_container.insert(element);
+///         // And then create a collection of that length!
+///         let mut my_collection = MyCollection::with_capacity(len);
+///         for _ in 0..len {
+///             let element = T::arbitrary(u)?;
+///             my_collection.insert(element);
 ///         }
 ///
-///         Ok(my_container)
+///         Ok(my_collection)
 ///     }
 /// }
 /// ```
@@ -604,7 +604,7 @@ fn shrink_collection<'a, T, A: Arbitrary>(
 
 impl<A: Arbitrary> Arbitrary for Vec<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<A>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -619,7 +619,7 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
 
 impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<(K, V)>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -636,7 +636,7 @@ impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
 
 impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<A>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -652,7 +652,7 @@ impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
 
 impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<A>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -668,7 +668,7 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
 
 impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<(K, V)>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -685,7 +685,7 @@ impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<
 
 impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<A>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -701,7 +701,7 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
 
 impl<A: Arbitrary> Arbitrary for LinkedList<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<A>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -717,7 +717,7 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
 
 impl<A: Arbitrary> Arbitrary for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<A>()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
 
@@ -754,7 +754,7 @@ where
 
 impl Arbitrary for String {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.container_size()?;
+        let size = u.arbitrary_len::<char>()?;
         (0..size)
             .map(|_| <char as Arbitrary>::arbitrary(u))
             .collect()
