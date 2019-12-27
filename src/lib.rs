@@ -6,11 +6,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! The Arbitrary trait crate
+//! The `Arbitrary` trait crate.
 //!
-//! This trait provides an `Arbitrary` trait to produce well-typed data from
-//! byte buffers. The crate additionally provides different flavors of byte
-//! buffers with useful semantics.
+//! This trait provides an [`Arbitrary`](./trait.Arbitrary.html) trait to
+//! produce well-typed, structured values, from raw, byte buffers. It is
+//! generally intended to be used with fuzzers like AFL or libFuzzer. See the
+//! [`Arbitrary`](./trait.Arbitrary.html) trait's documentation for details on
+//! automatically deriving, implementing, and/or using the trait.
+
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
@@ -19,8 +22,15 @@
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
 
-#[cfg(feature = "derive")]
+#[cfg(feature = "derive_arbitrary")]
 pub use derive_arbitrary::*;
+
+mod error;
+pub use error::*;
+
+pub mod unstructured;
+#[doc(inline)]
+pub use unstructured::Unstructured;
 
 use std::borrow::{Cow, ToOwned};
 use std::cell::{Cell, RefCell, UnsafeCell};
@@ -34,26 +44,6 @@ use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-/// Unstructured data from which structured `Arbitrary` data shall be generated.
-///
-/// This could be a random number generator, a static ring buffer of bytes or some such.
-pub trait Unstructured {
-    /// The error type for [`Unstructured`], see implementations for details
-    type Error;
-    /// Fill a `buffer` with bytes, forming the unstructured data from which
-    /// `Arbitrary` structured data shall be generated.
-    ///
-    /// This operation is fallible to allow implementations based on e.g. I/O.
-    fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>;
-
-    /// Generate a size for container.
-    ///
-    /// e.g. number of elements in a vector
-    fn container_size(&mut self) -> Result<usize, Self::Error> {
-        <u8 as Arbitrary>::arbitrary(self).map(|x| x as usize)
-    }
-}
-
 fn empty<T: 'static>() -> Box<dyn Iterator<Item = T>> {
     Box::new(iter::empty())
 }
@@ -62,26 +52,150 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
     Box::new(iter::once(val))
 }
 
-/// A trait to generate and shrink arbitrary types from an [`Unstructured`] pool
-/// of bytes.
+/// Generate arbitrary structured values from raw, unstructured data.
+///
+/// The `Arbitrary` trait allows you to generate valid structured values, like
+/// `HashMap`s, or ASTs, or `MyTomlConfig`, or any other data structure from
+/// raw, unstructured bytes provided by a fuzzer. It also features built-in
+/// shrinking, so that if you find a test case that triggers a bug, you can find
+/// the smallest, most easiest-to-understand test case that still triggers that
+/// bug.
+///
+/// # Deriving `Arbitrary`
+///
+/// Using the custom derive requires that you enable the `"derive"` cargo
+/// feature in your `Cargo.toml`:
+///
+/// ```toml
+/// [dependencies]
+/// arbitrary = { version = "0.2.0", features = ["derive"] }
+/// ```
+///
+/// Then, you add the `#[derive(Arbitrary)]` annotation to your `struct` or
+/// `enum` type definition:
+///
+/// ```
+/// use arbitrary::Arbitrary;
+/// use std::collections::HashSet;
+///
+/// #[derive(Arbitrary)]
+/// pub struct AddressBook {
+///     friends: HashSet<Friend>,
+/// }
+///
+/// #[derive(Arbitrary, Hash, Eq, PartialEq)]
+/// pub enum Friend {
+///     Buddy { name: String },
+///     Pal { age: usize },
+/// }
+/// ```
+///
+/// Every member of the `struct` or `enum` must also implement `Arbitrary`.
+///
+/// # Implementing `Arbitrary` By Hand
+///
+/// Implementing `Arbitrary` mostly involves nested calls to other `Arbitrary`
+/// arbitrary implementations for each of your `struct` or `enum`'s members. But
+/// sometimes you need some amount of raw data, or you need to generate a
+/// variably-sized container type, or you something of that sort. The
+/// [`Unstructured`][crate::Unstructured] type helps you with these tasks.
+///
+/// ```
+/// use arbitrary::{Arbitrary, Result, Unstructured};
+/// # pub struct MyContainer<T> { _t: std::marker::PhantomData<T> }
+/// # impl<T> MyContainer<T> {
+/// #     pub fn with_capacity(capacity: usize) -> Self { MyContainer { _t: std::marker::PhantomData } }
+/// #     pub fn insert(&mut self, element: T) {}
+/// # }
+///
+/// impl<T> Arbitrary for MyContainer<T>
+/// where
+///     T: Arbitrary,
+/// {
+///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+///         // Get the size of the container to generate.
+///         let size = u.container_size()?;
+///
+///         // And then create a container of that size!
+///         let mut my_container = MyContainer::with_capacity(size);
+///         for _ in 0..size {
+///             let element = Arbitrary::arbitrary(u)?;
+///             my_container.insert(element);
+///         }
+///
+///         Ok(my_container)
+///     }
+/// }
+/// ```
 pub trait Arbitrary: Sized + 'static {
-    /// Generate arbitrary structured data from unstructured data.
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error>;
+    /// Generate an arbitrary value of `Self` from the given unstructured data.
+    ///
+    /// Calling `Arbitrary::arbitrary` requires that you have some raw data,
+    /// perhaps given to you by a fuzzer like AFL or libFuzzer. You wrap this
+    /// raw data in an `Unstructured`, and then you can call `<MyType as
+    /// Arbitrary>::arbitrary` to construct an arbitrary instance of `MyType`
+    /// from that unstuctured data.
+    ///
+    /// Implementation may return an error if there is not enough data to
+    /// construct a full instance of `Self`. This is generally OK: it is better
+    /// to exit early and get the fuzzer to provide more input data, than it is
+    /// to generate default values in place of the missing data, which would
+    /// bias the distribution of generated values, and ultimately make fuzzing
+    /// less efficient.
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// #[derive(Arbitrary)]
+    /// pub struct MyType {
+    ///     // ...
+    /// }
+    ///
+    /// // Get the raw data from the fuzzer or wherever else.
+    /// # let get_raw_data_from_fuzzer = || &[];
+    /// let raw_data: &[u8] = get_raw_data_from_fuzzer();
+    ///
+    /// // Wrap that raw data in an `Unstructured`.
+    /// let mut unstructured = Unstructured::new(raw_data);
+    ///
+    /// // Generate an arbitrary instance of `MyType` and do stuff with it.
+    /// if let Ok(value) = MyType::arbitrary(&mut unstructured) {
+    /// #   let do_stuff = |_| {};
+    ///     do_stuff(value);
+    /// }
+    /// ```
+    ///
+    /// See also the documentation for [`Unstructured`][crate::Unstructured].
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self>;
 
-    /// Generate derived values which are “smaller” than the original one.
+    /// Generate an iterator of derived values which are "smaller" than the
+    /// original `self` instance.
+    ///
+    /// You can use this to help find the smallest test case that reproduces a
+    /// bug.
+    ///
+    /// Using `#[derive(Arbitrary)]` will automatically implement shrinking for
+    /// your type.
+    ///
+    /// However, if you are implementing `Arbirary` by hand and you want support
+    /// for shrinking your type, you must override the default provided
+    /// implementation of `shrink`, which just returns an empty iterator. You
+    /// should try pretty hard to have your `shrink` implementation return a
+    /// *lazy* iterator: one that computes the next value as it is needed,
+    /// rather than computing them up front when `shrink` is first called.
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         empty()
     }
 }
 
 impl Arbitrary for () {
-    fn arbitrary<U: Unstructured + ?Sized>(_: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(_: &mut Unstructured<'_>) -> Result<Self> {
         Ok(())
     }
 }
 
 impl Arbitrary for bool {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(<u8 as Arbitrary>::arbitrary(u)? & 1 == 1)
     }
 
@@ -94,7 +208,7 @@ macro_rules! impl_arbitrary_for_integers {
     ( $( $ty:ty: $unsigned:ty; )* ) => {
         $(
             impl Arbitrary for $ty {
-                fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+                fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                     let mut buf = [0; mem::size_of::<$ty>()];
                     u.fill_buffer(&mut buf)?;
                     let mut x: $unsigned = 0;
@@ -142,7 +256,7 @@ macro_rules! impl_arbitrary_for_floats {
     ( $( $ty:ident : $unsigned:ty; )* ) => {
         $(
             impl Arbitrary for $ty {
-                fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+                fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                     Ok(Self::from_bits(<$unsigned as Arbitrary>::arbitrary(u)?))
                 }
 
@@ -187,8 +301,8 @@ impl_arbitrary_for_floats! {
 }
 
 impl Arbitrary for char {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
-        use ::std::char;
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+        use std::char;
         const CHAR_END: u32 = 0x0011_000;
         // The size of the surrogate blocks
         const SURROGATES_START: u32 = 0xD800;
@@ -213,7 +327,7 @@ impl Arbitrary for char {
 }
 
 impl Arbitrary for AtomicBool {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -227,7 +341,7 @@ impl Arbitrary for AtomicBool {
 }
 
 impl Arbitrary for AtomicIsize {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -238,7 +352,7 @@ impl Arbitrary for AtomicIsize {
 }
 
 impl Arbitrary for AtomicUsize {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -249,7 +363,7 @@ impl Arbitrary for AtomicUsize {
 }
 
 impl Arbitrary for Duration {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(Self::new(
             Arbitrary::arbitrary(u)?,
             <u32 as Arbitrary>::arbitrary(u)? % 1_000_000_000,
@@ -266,7 +380,7 @@ impl Arbitrary for Duration {
 }
 
 impl<A: Arbitrary> Arbitrary for Option<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(if Arbitrary::arbitrary(u)? {
             Some(Arbitrary::arbitrary(u)?)
         } else {
@@ -283,8 +397,8 @@ impl<A: Arbitrary> Arbitrary for Option<A> {
     }
 }
 
-impl<A: Arbitrary, B: Arbitrary> Arbitrary for Result<A, B> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+impl<A: Arbitrary, B: Arbitrary> Arbitrary for std::result::Result<A, B> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(if Arbitrary::arbitrary(u)? {
             Ok(Arbitrary::arbitrary(u)?)
         } else {
@@ -306,7 +420,7 @@ macro_rules! arbitrary_tuple {
         arbitrary_tuple!($($xs)*);
 
         impl<$x: Arbitrary, $($xs: Arbitrary),*> Arbitrary for ($x, $($xs),*) {
-            fn arbitrary<_U: Unstructured + ?Sized>(u: &mut _U) -> Result<Self, _U::Error> {
+            fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                 Ok((Arbitrary::arbitrary(u)?, $($xs::arbitrary(u)?),*))
             }
 
@@ -328,7 +442,7 @@ macro_rules! arbitrary_array {
         arbitrary_array!{($n - 1), $($ts)*}
 
         impl<T: Arbitrary> Arbitrary for [T; $n] {
-            fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<[T; $n], U::Error> {
+            fn arbitrary(u: &mut Unstructured<'_>) -> Result<[T; $n]> {
                 Ok([
                     Arbitrary::arbitrary(u)?,
                     $(<$ts as Arbitrary>::arbitrary(u)?),*
@@ -395,7 +509,7 @@ fn shrink_collection<'a, T, A: Arbitrary>(
 }
 
 impl<A: Arbitrary> Arbitrary for Vec<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -406,7 +520,7 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
 }
 
 impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -419,7 +533,7 @@ impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
 }
 
 impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -431,7 +545,7 @@ impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
 }
 
 impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -443,7 +557,7 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
 }
 
 impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<K, V> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -456,7 +570,7 @@ impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<
 }
 
 impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -468,7 +582,7 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for LinkedList<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -480,7 +594,7 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for VecDeque<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
     }
@@ -496,7 +610,7 @@ where
     A: ToOwned + ?Sized,
     <A as ToOwned>::Owned: Arbitrary,
 {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Cow::Owned)
     }
 
@@ -509,7 +623,7 @@ where
 }
 
 impl Arbitrary for String {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.container_size()?;
         (0..size)
             .map(|_| <char as Arbitrary>::arbitrary(u))
@@ -523,7 +637,7 @@ impl Arbitrary for String {
 }
 
 impl Arbitrary for CString {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <Vec<u8> as Arbitrary>::arbitrary(u).map(|mut x| {
             x.retain(|&c| c != 0);
             Self::new(x).unwrap()
@@ -539,7 +653,7 @@ impl Arbitrary for CString {
 }
 
 impl Arbitrary for OsString {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(From::from)
     }
 
@@ -553,7 +667,7 @@ impl Arbitrary for OsString {
 }
 
 impl Arbitrary for PathBuf {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
     }
 
@@ -564,7 +678,7 @@ impl Arbitrary for PathBuf {
 }
 
 impl<A: Arbitrary> Arbitrary for Box<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -574,7 +688,7 @@ impl<A: Arbitrary> Arbitrary for Box<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for Box<[A]> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
     }
 
@@ -584,7 +698,7 @@ impl<A: Arbitrary> Arbitrary for Box<[A]> {
 }
 
 impl Arbitrary for Box<str> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
     }
 
@@ -595,20 +709,20 @@ impl Arbitrary for Box<str> {
 }
 
 // impl Arbitrary for Box<CStr> {
-//     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+//     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
 //         <CString as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_c_str())
 //     }
 // }
 
 // impl Arbitrary for Box<OsStr> {
-//     fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+//     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
 //         <OsString as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_osstr())
 //
 //     }
 // }
 
 impl<A: Arbitrary> Arbitrary for Arc<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -618,7 +732,7 @@ impl<A: Arbitrary> Arbitrary for Arc<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for Rc<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -628,7 +742,7 @@ impl<A: Arbitrary> Arbitrary for Rc<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for Cell<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -638,7 +752,7 @@ impl<A: Arbitrary> Arbitrary for Cell<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for RefCell<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -649,7 +763,7 @@ impl<A: Arbitrary> Arbitrary for RefCell<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -658,7 +772,7 @@ impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for Mutex<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
@@ -671,131 +785,25 @@ impl<A: Arbitrary> Arbitrary for Mutex<A> {
 }
 
 impl<A: Arbitrary> Arbitrary for iter::Empty<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(_: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(_: &mut Unstructured<'_>) -> Result<Self> {
         Ok(iter::empty())
     }
 }
 
 impl<A: Arbitrary> Arbitrary for ::std::marker::PhantomData<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(_: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(_: &mut Unstructured<'_>) -> Result<Self> {
         Ok(::std::marker::PhantomData)
     }
 }
 
 impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
-    fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
         let ref x = self.0;
         Box::new(x.shrink().map(::std::num::Wrapping))
-    }
-}
-
-/// An enumeration of buffer creation errors
-#[derive(Debug, Clone, Copy)]
-pub enum BufferError {
-    /// The input buffer is empty, causing construction of some buffer types to
-    /// fail
-    EmptyInput,
-}
-
-/// A source of unstructured data with a finite size
-///
-/// This buffer is a finite source of unstructured data. Once the data is
-/// exhausted it stays exhausted.
-pub struct FiniteBuffer<'a> {
-    buffer: &'a [u8],
-    offset: usize,
-    max_len: usize,
-}
-
-impl<'a> FiniteBuffer<'a> {
-    /// Create a new FiniteBuffer
-    ///
-    /// If the passed `buffer` is shorter than max_len the total number of bytes
-    /// will be the bytes available in `buffer`. If `buffer` is longer than
-    /// `max_len` the buffer will be trimmed.
-    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self, BufferError> {
-        let buf: &'a [u8] = if buffer.len() > max_len {
-            &buffer[..max_len]
-        } else {
-            // This branch is hit if buffer is shorter than max_len. We might
-            // choose to make this an error condition instead of, potentially,
-            // surprising folks with less bytes.
-            buffer
-        };
-
-        Ok(FiniteBuffer {
-            buffer: buf,
-            offset: 0,
-            max_len: buf.len(),
-        })
-    }
-}
-
-impl<'a> Unstructured for FiniteBuffer<'a> {
-    type Error = ();
-
-    fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        if (self.max_len - self.offset) >= buffer.len() {
-            let max = self.offset + buffer.len();
-            for (i, idx) in (self.offset..max).enumerate() {
-                buffer[i] = self.buffer[idx];
-            }
-            self.offset = max;
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-
-    // NOTE(blt) I'm not sure if this is the right definition. I don't
-    // understand the purpose of container_size.
-    fn container_size(&mut self) -> Result<usize, Self::Error> {
-        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
-    }
-}
-
-/// A source of unstructured data which returns the same data over and over again
-///
-/// This buffer acts as a ring buffer over the source of unstructured data,
-/// allowing for an infinite amount of not-very-random data.
-pub struct RingBuffer<'a> {
-    buffer: &'a [u8],
-    offset: usize,
-    max_len: usize,
-}
-
-impl<'a> RingBuffer<'a> {
-    /// Create a new RingBuffer
-    pub fn new(buffer: &'a [u8], max_len: usize) -> Result<Self, BufferError> {
-        if buffer.is_empty() {
-            return Err(BufferError::EmptyInput);
-        }
-        Ok(RingBuffer {
-            buffer,
-            offset: 0,
-            max_len,
-        })
-    }
-}
-
-impl<'a> Unstructured for RingBuffer<'a> {
-    type Error = ();
-    fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        let b = [&self.buffer[self.offset..], &self.buffer[..self.offset]];
-        let it = ::std::iter::repeat(&b[..]).flat_map(|x| x).flat_map(|&x| x);
-        self.offset = (self.offset + buffer.len()) % self.buffer.len();
-        for (d, f) in buffer.iter_mut().zip(it) {
-            *d = *f;
-        }
-        Ok(())
-    }
-
-    fn container_size(&mut self) -> Result<usize, Self::Error> {
-        <usize as Arbitrary>::arbitrary(self).map(|x| x % self.max_len)
     }
 }
 
@@ -806,7 +814,7 @@ mod test {
     #[test]
     fn finite_buffer_fill_buffer() {
         let x = [1, 2, 3, 4];
-        let mut rb = FiniteBuffer::new(&x, 10).unwrap();
+        let mut rb = Unstructured::new(&x);
         let mut z = [0; 2];
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [1, 2]);
@@ -816,31 +824,9 @@ mod test {
     }
 
     #[test]
-    fn ring_buffer_fill_buffer() {
-        let x = [1, 2, 3, 4];
-        let mut rb = RingBuffer::new(&x, 2).unwrap();
-        let mut z = [0; 10];
-        rb.fill_buffer(&mut z).unwrap();
-        assert_eq!(z, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
-        rb.fill_buffer(&mut z).unwrap();
-        assert_eq!(z, [3, 4, 1, 2, 3, 4, 1, 2, 3, 4]);
-    }
-
-    #[test]
-    fn ring_buffer_container_size() {
-        let x = [1, 2, 3, 4, 5];
-        let mut rb = RingBuffer::new(&x, 11).unwrap();
-        assert_eq!(rb.container_size().unwrap(), 9);
-        assert_eq!(rb.container_size().unwrap(), 1);
-        assert_eq!(rb.container_size().unwrap(), 2);
-        assert_eq!(rb.container_size().unwrap(), 6);
-        assert_eq!(rb.container_size().unwrap(), 1);
-    }
-
-    #[test]
     fn arbitrary_for_integers() {
         let x = [1, 2, 3, 4];
-        let mut buf = FiniteBuffer::new(&x, x.len()).unwrap();
+        let mut buf = Unstructured::new(&x);
         let expected = 1 | (2 << 8) | (3 << 16) | (4 << 24);
         let actual = i32::arbitrary(&mut buf).unwrap();
         assert_eq!(expected, actual);

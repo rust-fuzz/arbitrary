@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    - run: rustup update
     - name: Build
       run: cargo build --verbose --all
     - name: Run tests
@@ -17,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    - run: rustup update
     - name: Build
       run: cargo build --verbose --all-features --all
     - name: Run tests
@@ -28,5 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    - run: rustup update
     - run: rustup component add rustfmt --toolchain stable
     - run: cargo +stable fmt --all -- --check

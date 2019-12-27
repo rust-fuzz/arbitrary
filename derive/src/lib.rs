@@ -8,7 +8,7 @@ fn gen_arbitrary_method(variants: &[VariantInfo]) -> TokenStream {
         // struct
         let con = variants[0].construct(|_, _| quote! { Arbitrary::arbitrary(u)? });
         quote! {
-            fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+            fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                 Ok(#con)
             }
         }
@@ -25,7 +25,7 @@ fn gen_arbitrary_method(variants: &[VariantInfo]) -> TokenStream {
         let count = variants.len() as u64;
 
         quote! {
-            fn arbitrary<U: Unstructured + ?Sized>(u: &mut U) -> Result<Self, U::Error> {
+            fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
                 // Use a multiply + shift to generate a ranged random number
                 // with slight bias. For details, see:
                 // https://lemire.me/blog/2016/06/30/fast-random-shuffling
@@ -78,7 +78,7 @@ fn arbitrary_derive(s: Structure) -> TokenStream {
     let arbitrary_method = gen_arbitrary_method(s.variants());
     let shrink_method = gen_shrink_method(&s);
     s.gen_impl(quote! {
-        use arbitrary::{Arbitrary, Unstructured};
+        use arbitrary::{Arbitrary, Unstructured, Result};
 
         gen impl Arbitrary for @Self {
             #arbitrary_method
