@@ -65,6 +65,9 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 ///
 /// # Deriving `Arbitrary`
 ///
+/// Automatically deriving the `Arbitrary` trait is the recommended way to
+/// implement `Arbitrary` for your types.
+///
 /// Using the custom derive requires that you enable the `"derive"` cargo
 /// feature in your `Cargo.toml`:
 ///
