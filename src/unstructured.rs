@@ -210,48 +210,14 @@ impl<'a> Unstructured<'a> {
     where
         ElementType: Arbitrary,
     {
-        let byte_size = self.container_size()?;
+        let byte_size = self.arbitrary_byte_size()?;
         let (lower, upper) = <ElementType as Arbitrary>::size_hint();
         let elem_size = upper.unwrap_or_else(|| lower * 2);
         let elem_size = std::cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
     }
 
-    /// Generate a size for container or collection, e.g. the number of elements
-    /// in a vector.
-    ///
-    /// This should only be called within an `Arbitrary` implementation.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use arbitrary::{Arbitrary, Result, Unstructured};
-    /// # pub struct MyContainer<T> { _t: std::marker::PhantomData<T> }
-    /// # impl<T> MyContainer<T> {
-    /// #     pub fn with_capacity(capacity: usize) -> Self { MyContainer { _t: std::marker::PhantomData } }
-    /// #     pub fn insert(&mut self, element: T) {}
-    /// # }
-    ///
-    /// impl<T> Arbitrary for MyContainer<T>
-    /// where
-    ///     T: Arbitrary,
-    /// {
-    ///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-    ///         // Get the size of the container to generate.
-    ///         let size = u.container_size()?;
-    ///
-    ///         // And then create a container of that size!
-    ///         let mut my_container = MyContainer::with_capacity(size);
-    ///         for _ in 0..size {
-    ///             let element = Arbitrary::arbitrary(u)?;
-    ///             my_container.insert(element);
-    ///         }
-    ///
-    ///         Ok(my_container)
-    ///     }
-    /// }
-    /// ```
-    pub fn container_size(&mut self) -> Result<usize> {
+    fn arbitrary_byte_size(&mut self) -> Result<usize> {
         match self.data.len().checked_sub(mem::size_of::<usize>()) {
             None => return Err(Error::NotEnoughData),
             Some(0) => {
@@ -275,7 +241,7 @@ impl<'a> Unstructured<'a> {
     /// Generate an integer within the given range.
     ///
     /// Do not use this to generate the size of a collection. Use
-    /// `container_size` instead.
+    /// `arbitrary_len` instead.
     ///
     /// # Panics
     ///
