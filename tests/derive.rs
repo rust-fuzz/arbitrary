@@ -29,6 +29,8 @@ fn struct_with_named_fields() {
             Rgb { r: 1, g: 1, b: 1 }
         ]
     );
+
+    assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint());
 }
 
 #[derive(Copy, Clone, Debug, Arbitrary)]
@@ -48,6 +50,8 @@ fn tuple_struct() {
         assert_eq!(a, s.0);
         assert_eq!(b, s.1);
     }
+
+    assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint());
 }
 
 #[derive(Copy, Clone, Debug, Arbitrary)]
@@ -119,4 +123,6 @@ fn derive_enum() {
     assert!(saw_unit);
     assert!(saw_tuple);
     assert!(saw_struct);
+
+    assert_eq!((13, Some(13)), <MyEnum as Arbitrary>::size_hint());
 }

@@ -38,6 +38,23 @@ fn gen_arbitrary_method(variants: &[VariantInfo]) -> TokenStream {
     }
 }
 
+fn gen_size_hint_method(s: &Structure) -> TokenStream {
+    let mut sizes = Vec::with_capacity(s.variants().len());
+    for v in s.variants().iter() {
+        let tys = v.ast().fields.iter().map(|f| &f.ty);
+        sizes.push(quote! {
+            arbitrary::size_hint::and_all(&[
+                #( <#tys as Arbitrary>::size_hint() ),*
+            ])
+        });
+    }
+    quote! {
+        fn size_hint() -> (usize, Option<usize>) {
+            arbitrary::size_hint::or_all(&[ #( #sizes ),* ])
+        }
+    }
+}
+
 fn gen_shrink_method(s: &Structure) -> TokenStream {
     let variants = s.each_variant(|v| {
         if v.bindings().is_empty() {
@@ -76,12 +93,13 @@ fn gen_shrink_method(s: &Structure) -> TokenStream {
 
 fn arbitrary_derive(s: Structure) -> TokenStream {
     let arbitrary_method = gen_arbitrary_method(s.variants());
+    let size_hint_method = gen_size_hint_method(&s);
     let shrink_method = gen_shrink_method(&s);
     s.gen_impl(quote! {
         use arbitrary::{Arbitrary, Unstructured, Result};
-
         gen impl Arbitrary for @Self {
             #arbitrary_method
+            #size_hint_method
             #shrink_method
         }
     })

@@ -33,6 +33,9 @@ RGB always ends up exactly where we started).
 
 ### Automatically Deriving `Arbitrary`
 
+Automatically deriving the `Arbitrary` trait is the recommended way to implement
+`Arbitrary` for your types.
+
 Automatically deriving `Arbitrary` requires you to enable the `"derive"` cargo
 feature:
 
