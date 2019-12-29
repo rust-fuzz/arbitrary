@@ -386,14 +386,35 @@ impl<'a> Unstructured<'a> {
     /// assert!(u.fill_buffer(&mut buf).is_err());
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        if self.data.len() < buffer.len() {
+        let bytes = self.get_bytes(buffer.len())?;
+        buffer.copy_from_slice(bytes);
+        Ok(())
+    }
+
+    /// Provide `size` bytes from the underlying raw data.
+    ///
+    /// This should only be called within an `Arbitrary` implementation. This is
+    /// a very low-level operation. You should generally prefer calling nested
+    /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
+    /// `String::arbitrary` over using this method directly.
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    ///
+    /// assert!(u.get_bytes(2).unwrap() == &[1, 2]);
+    /// assert!(u.get_bytes(2).unwrap() == &[3, 4]);
+    /// ```
+    pub fn get_bytes(&mut self, size: usize) -> Result<&'a [u8]> {
+        if self.data.len() < size {
             return Err(Error::NotEnoughData);
         }
 
-        let (for_buf, rest) = self.data.split_at(buffer.len());
+        let (for_buf, rest) = self.data.split_at(size);
         self.data = rest;
-        buffer.copy_from_slice(for_buf);
-        Ok(())
+        Ok(for_buf)
     }
 
     /// Consume all of the rest of the remaining underlying bytes.
