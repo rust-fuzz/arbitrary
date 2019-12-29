@@ -619,6 +619,10 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
     fn size_hint() -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
@@ -631,6 +635,10 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
 impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -649,6 +657,10 @@ impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
     fn size_hint() -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
@@ -664,6 +676,10 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
     fn size_hint() -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
@@ -677,6 +693,10 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
 impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -695,6 +715,10 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
     fn size_hint() -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
@@ -710,6 +734,10 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
     fn size_hint() -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
@@ -723,6 +751,10 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
 impl<A: Arbitrary> Arbitrary for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -758,7 +790,7 @@ where
 
 impl Arbitrary for String {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<char>()?;
+        let size = u.arbitrary_len::<u8>()?;
         (0..size)
             .map(|_| <char as Arbitrary>::arbitrary(u))
             .collect()

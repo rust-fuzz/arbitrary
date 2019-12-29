@@ -429,6 +429,26 @@ impl<'a> Unstructured<'a> {
             _marker: PhantomData,
         })
     }
+
+    /// Provide an iterator over elements for constructing a collection from
+    /// all the remaining bytes.
+    ///
+    /// This is useful for implementing [`Arbitrary::arbitrary_take_rest`] on collections
+    /// since the implementation is simply `u.arbitrary_take_rest_iter()?.collect()`
+    pub fn arbitrary_take_rest_iter<ElementType: Arbitrary>(
+        self,
+    ) -> Result<ArbitraryTakeRestIter<'a, ElementType>> {
+        let (lower, upper) = ElementType::size_hint();
+
+        let elem_size = upper.unwrap_or(lower * 2);
+        let elem_size = std::cmp::max(1, elem_size);
+        let size = self.len() / elem_size;
+        Ok(ArbitraryTakeRestIter {
+            size,
+            u: Some(self),
+            _marker: PhantomData,
+        })
+    }
 }
 
 /// Utility iterator produced by [`Unstructured::arbitrary_iter`]
@@ -446,6 +466,33 @@ impl<'a, 'b, ElementType: Arbitrary> Iterator for ArbitraryIter<'a, 'b, ElementT
         } else {
             self.size -= 1;
             Some(Arbitrary::arbitrary(self.u))
+        }
+    }
+}
+
+/// Utility iterator produced by [`Unstructured::arbitrary_take_rest_iter`]
+pub struct ArbitraryTakeRestIter<'a, ElementType> {
+    u: Option<Unstructured<'a>>,
+    size: usize,
+    _marker: PhantomData<ElementType>,
+}
+
+impl<'a, ElementType: Arbitrary> Iterator for ArbitraryTakeRestIter<'a, ElementType> {
+    type Item = Result<ElementType>;
+    fn next(&mut self) -> Option<Result<ElementType>> {
+        if let Some(mut u) = self.u.take() {
+            if self.size == 1 {
+                Some(Arbitrary::arbitrary_take_rest(u))
+            } else if self.size == 0 {
+                None
+            } else {
+                self.size -= 1;
+                let ret = Arbitrary::arbitrary(&mut u);
+                self.u = Some(u);
+                Some(ret)
+            }
+        } else {
+            None
         }
     }
 }
