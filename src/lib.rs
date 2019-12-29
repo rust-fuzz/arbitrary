@@ -798,6 +798,13 @@ impl Arbitrary for String {
             .map(Into::into)
     }
 
+    fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
+        let bytes = u.take_rest();
+        str::from_utf8(bytes)
+            .map_err(|_| Error::IncorrectFormat)
+            .map(Into::into)
+    }
+
     fn size_hint() -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
     }
