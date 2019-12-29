@@ -42,6 +42,7 @@ use std::iter;
 use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::str;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -791,9 +792,10 @@ where
 impl Arbitrary for String {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
-        (0..size)
-            .map(|_| <char as Arbitrary>::arbitrary(u))
-            .collect()
+        let bytes = u.get_bytes(size)?;
+        str::from_utf8(bytes)
+            .map_err(|_| Error::IncorrectFormat)
+            .map(Into::into)
     }
 
     fn size_hint() -> (usize, Option<usize>) {

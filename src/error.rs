@@ -7,6 +7,8 @@ pub enum Error {
     /// There was not enough underlying data to fulfill some request for raw
     /// bytes.
     NotEnoughData,
+    /// The input bytes were not of the right format
+    IncorrectFormat,
 }
 
 impl fmt::Display for Error {
@@ -15,6 +17,10 @@ impl fmt::Display for Error {
             Error::NotEnoughData => write!(
                 f,
                 "There is not enough underlying raw data to construct an `Arbitrary` instance"
+            ),
+            Error::IncorrectFormat => write!(
+                f,
+                "The raw data is not of the correct format to construct this type"
             ),
         }
     }
