@@ -509,27 +509,34 @@ impl<A: Arbitrary, B: Arbitrary> Arbitrary for std::result::Result<A, B> {
 
 macro_rules! arbitrary_tuple {
     () => {};
-    ($x: ident $($xs: ident)*) => {
+    ($last: ident $($xs: ident)*) => {
         arbitrary_tuple!($($xs)*);
 
-        impl<$x: Arbitrary, $($xs: Arbitrary),*> Arbitrary for ($x, $($xs),*) {
+        impl<$($xs: Arbitrary,)* $last: Arbitrary> Arbitrary for ($($xs,)* $last,) {
             fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-                Ok((Arbitrary::arbitrary(u)?, $($xs::arbitrary(u)?),*))
+                Ok(($($xs::arbitrary(u)?,)* Arbitrary::arbitrary(u)?,))
+            }
+
+            #[allow(unused_mut, non_snake_case)]
+            fn arbitrary_take_rest(mut u: Unstructured<'_>) -> Result<Self> {
+                $(let $xs = $xs::arbitrary(&mut u)?;)*
+                let $last = $last::arbitrary_take_rest(u)?;
+                Ok(($($xs,)* $last,))
             }
 
             fn size_hint() -> (usize, Option<usize>) {
                 crate::size_hint::and_all(&[
-                    <$x as Arbitrary>::size_hint(),
+                    <$last as Arbitrary>::size_hint(),
                     $( <$xs as Arbitrary>::size_hint() ),*
                 ])
             }
 
             #[allow(non_snake_case)]
             fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-                let ( $x, $( $xs ),* ) = self;
-                let ( mut $x, $( mut $xs ),* ) = ( $x.shrink(), $( $xs.shrink() ),* );
+                let ( $( $xs, )* $last, ) = self;
+                let ( $( mut $xs, )* mut $last,) = ( $( $xs.shrink(), )* $last.shrink(),);
                 Box::new(iter::from_fn(move || {
-                    Some(( $x.next()?, $( $xs.next()? ),* ))
+                    Some(( $( $xs.next()? ,)* $last.next()?, ))
                 }))
             }
         }
