@@ -9,6 +9,7 @@
 //! Wrappers around raw, unstructured bytes.
 
 use crate::{Arbitrary, Error, Result};
+use std::marker::PhantomData;
 use std::{mem, ops};
 
 /// A source of unstructured data.
@@ -412,6 +413,40 @@ impl<'a> Unstructured<'a> {
     /// ```
     pub fn take_rest(mut self) -> &'a [u8] {
         mem::replace(&mut self.data, &[])
+    }
+
+    /// Provide an iterator over elements for constructing a collection
+    ///
+    /// This is useful for implementing [`Arbitrary::arbitrary`] on collections
+    /// since the implementation is simply `u.arbitrary_iter()?.collect()`
+    pub fn arbitrary_iter<'b, ElementType: Arbitrary>(
+        &'b mut self,
+    ) -> Result<ArbitraryIter<'a, 'b, ElementType>> {
+        let size = self.arbitrary_len::<ElementType>()?;
+        Ok(ArbitraryIter {
+            size,
+            u: &mut *self,
+            _marker: PhantomData,
+        })
+    }
+}
+
+/// Utility iterator produced by [`Unstructured::arbitrary_iter`]
+pub struct ArbitraryIter<'a, 'b, ElementType> {
+    u: &'b mut Unstructured<'a>,
+    size: usize,
+    _marker: PhantomData<ElementType>,
+}
+
+impl<'a, 'b, ElementType: Arbitrary> Iterator for ArbitraryIter<'a, 'b, ElementType> {
+    type Item = Result<ElementType>;
+    fn next(&mut self) -> Option<Result<ElementType>> {
+        if self.size == 0 {
+            None
+        } else {
+            self.size -= 1;
+            Some(Arbitrary::arbitrary(self.u))
+        }
     }
 }
 

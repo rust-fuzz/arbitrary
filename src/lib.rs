@@ -616,8 +616,7 @@ fn shrink_collection<'a, T, A: Arbitrary>(
 
 impl<A: Arbitrary> Arbitrary for Vec<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<A>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -631,8 +630,7 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
 
 impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<(K, V)>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -648,8 +646,7 @@ impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
 
 impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<A>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -664,8 +661,7 @@ impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
 
 impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<A>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -680,8 +676,7 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
 
 impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<(K, V)>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -697,8 +692,7 @@ impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<
 
 impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<A>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -713,8 +707,7 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
 
 impl<A: Arbitrary> Arbitrary for LinkedList<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<A>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
@@ -729,8 +722,7 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
 
 impl<A: Arbitrary> Arbitrary for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let size = u.arbitrary_len::<A>()?;
-        (0..size).map(|_| Arbitrary::arbitrary(u)).collect()
+        u.arbitrary_iter()?.collect()
     }
 
     fn size_hint() -> (usize, Option<usize>) {
