@@ -1076,6 +1076,23 @@ mod test {
     }
 
     #[test]
+    fn arbitrary_take_rest() {
+        let x = [1, 2, 3, 4];
+        assert_eq!(
+            Vec::<u8>::arbitrary_take_rest(Unstructured::new(&x)).unwrap(),
+            &[1, 2, 3, 4]
+        );
+        assert_eq!(
+            Vec::<u32>::arbitrary_take_rest(Unstructured::new(&x)).unwrap(),
+            &[0x4030201]
+        );
+        assert_eq!(
+            String::arbitrary_take_rest(Unstructured::new(&x)).unwrap(),
+            "\x01\x02\x03\x04"
+        );
+    }
+
+    #[test]
     fn shrink_tuple() {
         let tup = (10, 20, 30);
         assert_eq!(
