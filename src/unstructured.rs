@@ -218,23 +218,46 @@ impl<'a> Unstructured<'a> {
     }
 
     fn arbitrary_byte_size(&mut self) -> Result<usize> {
-        match self.data.len().checked_sub(mem::size_of::<usize>()) {
-            None => return Err(Error::NotEnoughData),
-            Some(0) => {
-                self.data = &[];
-                return Ok(0);
-            }
-            Some(max_size) => {
-                // Take lengths from the end of the data, since the `libFuzzer` folks
-                // found that this lets fuzzers more efficiently explore the input
-                // space.
-                //
-                // https://github.com/rust-fuzz/libfuzzer-sys/blob/0c450753/libfuzzer/utils/FuzzedDataProvider.h#L92-L97
+        if self.data.len() == 0 {
+            Err(Error::NotEnoughData)
+        } else if self.data.len() == 1 {
+            self.data = &[];
+            Ok(0)
+        } else {
+            // Take lengths from the end of the data, since the `libFuzzer` folks
+            // found that this lets fuzzers more efficiently explore the input
+            // space.
+            //
+            // https://github.com/rust-fuzz/libfuzzer-sys/blob/0c450753/libfuzzer/utils/FuzzedDataProvider.h#L92-L97
+
+            // We only consume as many bytes as necessary to cover the entire range of the byte string
+            let len = if self.data.len() <= std::u8::MAX as usize + 1 {
+                let bytes = 1;
+                let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
-                let (size, _) = Self::int_in_range_impl(0..=max_size, for_size.iter().cloned())?;
-                Ok(size)
-            }
+                Self::int_in_range_impl(0..=max_size as u8, for_size.iter().copied())?.0 as usize
+            } else if self.data.len() <= std::u16::MAX as usize + 1 {
+                let bytes = 2;
+                let max_size = self.data.len() - bytes;
+                let (rest, for_size) = self.data.split_at(max_size);
+                self.data = rest;
+                Self::int_in_range_impl(0..=max_size as u16, for_size.iter().copied())?.0 as usize
+            } else if self.data.len() <= std::u32::MAX as usize + 1 {
+                let bytes = 4;
+                let max_size = self.data.len() - bytes;
+                let (rest, for_size) = self.data.split_at(max_size);
+                self.data = rest;
+                Self::int_in_range_impl(0..=max_size as u32, for_size.iter().copied())?.0 as usize
+            } else {
+                let bytes = 8;
+                let max_size = self.data.len() - bytes;
+                let (rest, for_size) = self.data.split_at(max_size);
+                self.data = rest;
+                Self::int_in_range_impl(0..=max_size as u64, for_size.iter().copied())?.0 as usize
+            };
+
+            Ok(len)
         }
     }
 
@@ -508,4 +531,20 @@ impl_int! {
     i64: i128;
     i128: i128;
     isize: i128;
+}
+
+#[test]
+fn test_byte_size() {
+    let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);
+    // Should take one byte off the end
+    assert_eq!(u.arbitrary_byte_size().unwrap(), 6);
+    assert_eq!(u.len(), 9);
+    let mut v = vec![];
+    v.resize(260, 0);
+    v.push(1);
+    v.push(4);
+    let mut u = Unstructured::new(&v);
+    // Should read two bytes off the end
+    assert_eq!(u.arbitrary_byte_size().unwrap(), 0x104);
+    assert_eq!(u.len(), 260);
 }
