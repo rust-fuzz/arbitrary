@@ -173,6 +173,15 @@ pub trait Arbitrary: Sized + 'static {
     /// See also the documentation for [`Unstructured`][crate::Unstructured].
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self>;
 
+    /// Generate an arbitrary value of `Self` from the entirety of the given unstructured data.
+    ///
+    /// This is similar to Arbitrary::arbitrary, however it assumes that it is the
+    /// last consumer of the given data, and is thus able to consume it all if it needs.
+    /// See also the documentation for [`Unstructured`][crate::Unstructured].
+    fn arbitrary_take_rest(mut u: Unstructured<'_>) -> Result<Self> {
+        Self::arbitrary(&mut u)
+    }
+
     /// Get a size hint for how many bytes out of an `Unstructured` this type
     /// needs to construct itself.
     ///

@@ -399,11 +399,6 @@ impl<'a> Unstructured<'a> {
     ///
     /// Returns a slice of all the remaining, unconsumed bytes.
     ///
-    /// If the underlying data is already exhausted, returns an error.
-    ///
-    /// Any subsequent requests for bytes will fail afterwards, since the
-    /// underlying data will have already been exhausted.
-    ///
     /// # Example
     ///
     /// ```
@@ -411,17 +406,12 @@ impl<'a> Unstructured<'a> {
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3]);
     ///
-    /// let mut remaining = u.take_rest()
-    ///     .expect("we know that `u` is non-empty, so `take_rest` cannot fail");
+    /// let mut remaining = u.take_rest();
     ///
     /// assert_eq!(remaining, [1, 2, 3]);
     /// ```
-    pub fn take_rest(&mut self) -> Result<&'a [u8]> {
-        if self.data.is_empty() {
-            Err(Error::NotEnoughData)
-        } else {
-            Ok(mem::replace(&mut self.data, &[]))
-        }
+    pub fn take_rest(mut self) -> &'a [u8] {
+        mem::replace(&mut self.data, &[])
     }
 }
 
