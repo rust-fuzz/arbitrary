@@ -545,14 +545,24 @@ macro_rules! arbitrary_tuple {
 arbitrary_tuple!(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z);
 
 macro_rules! arbitrary_array {
-    {$n:expr, $t:ident $($ts:ident)*} => {
-        arbitrary_array!{($n - 1), $($ts)*}
+    {$n:expr, ($t:ident, $a:ident) $(($ts:ident, $as:ident))*} => {
+        arbitrary_array!{($n - 1), $(($ts, $as))*}
 
         impl<T: Arbitrary> Arbitrary for [T; $n] {
             fn arbitrary(u: &mut Unstructured<'_>) -> Result<[T; $n]> {
                 Ok([
                     Arbitrary::arbitrary(u)?,
                     $(<$ts as Arbitrary>::arbitrary(u)?),*
+                ])
+            }
+
+            #[allow(unused_mut)]
+            fn arbitrary_take_rest(mut u: Unstructured<'_>) -> Result<[T; $n]> {
+                $(let $as = $ts::arbitrary(&mut u)?;)*
+                let last = Arbitrary::arbitrary_take_rest(u)?;
+
+                Ok([
+                    $($as,)* last
                 ])
             }
 
@@ -591,7 +601,11 @@ macro_rules! arbitrary_array {
     ($n: expr,) => {};
 }
 
-arbitrary_array! { 32, T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T T }
+arbitrary_array! { 32, (T, a) (T, b) (T, c) (T, d) (T, e) (T, f) (T, g) (T, h)
+(T, i) (T, j) (T, k) (T, l) (T, m) (T, n) (T, o) (T, p)
+(T, q) (T, r) (T, s) (T, u) (T, v) (T, w) (T, x) (T, y)
+(T, z) (T, aa) (T, ab) (T, ac) (T, ad) (T, ae) (T, af)
+(T, ag) }
 
 fn shrink_collection<'a, T, A: Arbitrary>(
     entries: impl Iterator<Item = T>,
