@@ -9,6 +9,7 @@
 //! Wrappers around raw, unstructured bytes.
 
 use crate::{Arbitrary, Error, Result};
+use std::marker::PhantomData;
 use std::{mem, ops};
 
 /// A source of unstructured data.
@@ -385,24 +386,40 @@ impl<'a> Unstructured<'a> {
     /// assert!(u.fill_buffer(&mut buf).is_err());
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        if self.data.len() < buffer.len() {
+        let bytes = self.get_bytes(buffer.len())?;
+        buffer.copy_from_slice(bytes);
+        Ok(())
+    }
+
+    /// Provide `size` bytes from the underlying raw data.
+    ///
+    /// This should only be called within an `Arbitrary` implementation. This is
+    /// a very low-level operation. You should generally prefer calling nested
+    /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
+    /// `String::arbitrary` over using this method directly.
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    ///
+    /// assert!(u.get_bytes(2).unwrap() == &[1, 2]);
+    /// assert!(u.get_bytes(2).unwrap() == &[3, 4]);
+    /// ```
+    pub fn get_bytes(&mut self, size: usize) -> Result<&'a [u8]> {
+        if self.data.len() < size {
             return Err(Error::NotEnoughData);
         }
 
-        let (for_buf, rest) = self.data.split_at(buffer.len());
+        let (for_buf, rest) = self.data.split_at(size);
         self.data = rest;
-        buffer.copy_from_slice(for_buf);
-        Ok(())
+        Ok(for_buf)
     }
 
     /// Consume all of the rest of the remaining underlying bytes.
     ///
     /// Returns a slice of all the remaining, unconsumed bytes.
-    ///
-    /// If the underlying data is already exhausted, returns an error.
-    ///
-    /// Any subsequent requests for bytes will fail afterwards, since the
-    /// underlying data will have already been exhausted.
     ///
     /// # Example
     ///
@@ -411,16 +428,92 @@ impl<'a> Unstructured<'a> {
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3]);
     ///
-    /// let mut remaining = u.take_rest()
-    ///     .expect("we know that `u` is non-empty, so `take_rest` cannot fail");
+    /// let mut remaining = u.take_rest();
     ///
     /// assert_eq!(remaining, [1, 2, 3]);
     /// ```
-    pub fn take_rest(&mut self) -> Result<&'a [u8]> {
-        if self.data.is_empty() {
-            Err(Error::NotEnoughData)
+    pub fn take_rest(mut self) -> &'a [u8] {
+        mem::replace(&mut self.data, &[])
+    }
+
+    /// Provide an iterator over elements for constructing a collection
+    ///
+    /// This is useful for implementing [`Arbitrary::arbitrary`] on collections
+    /// since the implementation is simply `u.arbitrary_iter()?.collect()`
+    pub fn arbitrary_iter<'b, ElementType: Arbitrary>(
+        &'b mut self,
+    ) -> Result<ArbitraryIter<'a, 'b, ElementType>> {
+        let size = self.arbitrary_len::<ElementType>()?;
+        Ok(ArbitraryIter {
+            size,
+            u: &mut *self,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Provide an iterator over elements for constructing a collection from
+    /// all the remaining bytes.
+    ///
+    /// This is useful for implementing [`Arbitrary::arbitrary_take_rest`] on collections
+    /// since the implementation is simply `u.arbitrary_take_rest_iter()?.collect()`
+    pub fn arbitrary_take_rest_iter<ElementType: Arbitrary>(
+        self,
+    ) -> Result<ArbitraryTakeRestIter<'a, ElementType>> {
+        let (lower, upper) = ElementType::size_hint();
+
+        let elem_size = upper.unwrap_or(lower * 2);
+        let elem_size = std::cmp::max(1, elem_size);
+        let size = self.len() / elem_size;
+        Ok(ArbitraryTakeRestIter {
+            size,
+            u: Some(self),
+            _marker: PhantomData,
+        })
+    }
+}
+
+/// Utility iterator produced by [`Unstructured::arbitrary_iter`]
+pub struct ArbitraryIter<'a, 'b, ElementType> {
+    u: &'b mut Unstructured<'a>,
+    size: usize,
+    _marker: PhantomData<ElementType>,
+}
+
+impl<'a, 'b, ElementType: Arbitrary> Iterator for ArbitraryIter<'a, 'b, ElementType> {
+    type Item = Result<ElementType>;
+    fn next(&mut self) -> Option<Result<ElementType>> {
+        if self.size == 0 {
+            None
         } else {
-            Ok(mem::replace(&mut self.data, &[]))
+            self.size -= 1;
+            Some(Arbitrary::arbitrary(self.u))
+        }
+    }
+}
+
+/// Utility iterator produced by [`Unstructured::arbitrary_take_rest_iter`]
+pub struct ArbitraryTakeRestIter<'a, ElementType> {
+    u: Option<Unstructured<'a>>,
+    size: usize,
+    _marker: PhantomData<ElementType>,
+}
+
+impl<'a, ElementType: Arbitrary> Iterator for ArbitraryTakeRestIter<'a, ElementType> {
+    type Item = Result<ElementType>;
+    fn next(&mut self) -> Option<Result<ElementType>> {
+        if let Some(mut u) = self.u.take() {
+            if self.size == 1 {
+                Some(Arbitrary::arbitrary_take_rest(u))
+            } else if self.size == 0 {
+                None
+            } else {
+                self.size -= 1;
+                let ret = Arbitrary::arbitrary(&mut u);
+                self.u = Some(u);
+                Some(ret)
+            }
+        } else {
+            None
         }
     }
 }

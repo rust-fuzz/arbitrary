@@ -54,6 +54,26 @@ fn tuple_struct() {
     assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint());
 }
 
+#[derive(Clone, Debug, Arbitrary)]
+struct EndingInVec(u8, bool, u32, Vec<u16>);
+#[derive(Clone, Debug, Arbitrary)]
+struct EndingInString(u8, bool, u32, String);
+
+#[test]
+fn test_take_rest() {
+    let bytes = [1, 1, 1, 2, 3, 4, 5, 6, 7, 8];
+    let s1 = EndingInVec::arbitrary_take_rest(Unstructured::new(&bytes)).unwrap();
+    let s2 = EndingInString::arbitrary_take_rest(Unstructured::new(&bytes)).unwrap();
+    assert_eq!(s1.0, 1);
+    assert_eq!(s2.0, 1);
+    assert_eq!(s1.1, true);
+    assert_eq!(s2.1, true);
+    assert_eq!(s1.2, 0x4030201);
+    assert_eq!(s2.2, 0x4030201);
+    assert_eq!(s1.3, vec![0x605, 0x807]);
+    assert_eq!(s2.3, "\x05\x06\x07\x08");
+}
+
 #[derive(Copy, Clone, Debug, Arbitrary)]
 enum MyEnum {
     Unit,
