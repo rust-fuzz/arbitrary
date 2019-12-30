@@ -1097,6 +1097,25 @@ mod test {
     }
 
     #[test]
+    fn arbitrary_collection() {
+        let x = [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8,
+        ];
+        assert_eq!(
+            Vec::<u8>::arbitrary(&mut Unstructured::new(&x)).unwrap(),
+            &[1, 2, 3, 4, 5, 6, 7, 8]
+        );
+        assert_eq!(
+            Vec::<u32>::arbitrary(&mut Unstructured::new(&x)).unwrap(),
+            &[0x4030201, 0x8070605]
+        );
+        assert_eq!(
+            String::arbitrary(&mut Unstructured::new(&x)).unwrap(),
+            "\x01\x02\x03\x04\x05\x06\x07\x08"
+        );
+    }
+
+    #[test]
     fn arbitrary_take_rest() {
         let x = [1, 2, 3, 4];
         assert_eq!(
