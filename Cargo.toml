@@ -1,7 +1,7 @@
 [package]
 name = "arbitrary"
-version = "0.2.0"
-authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
+version = "1.0.0-rc1"
+authors = ["The rust-fuzz Project Developers", "Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
 categories = ["development-tools::testing"]
 edition = "2018"
 keywords = ["arbitrary", "testing"]
@@ -12,11 +12,11 @@ repository = "https://github.com/nagisa/rust_arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
 
 [dependencies]
-derive_arbitrary = { version = "=0.2.0", path = "./derive", optional = true }
+derive_arbitrary = { version = "=1.0.0-rc1", path = "./derive", optional = true }
 
 [dev-dependencies]
 # Turn on the "derive" feature for doc tests.
-arbitrary = { version = "=0.2.0", path = ".", features = ["derive"] }
+arbitrary = { version = "=1.0.0-rc1", path = ".", features = ["derive"] }
 
 [features]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.

@@ -1,7 +1,7 @@
 [package]
 name = "derive_arbitrary"
-version = "0.2.0" # Make sure it matches the version of the arbitrary crate itself.
-authors = ["Andre Bogus <bogusandre@gmail.com>"]
+version = "1.0.0-rc1" # Make sure it matches the version of the arbitrary crate itself.
+authors = ["The rust-fuzz Project Developers", "Andre Bogus <bogusandre@gmail.com>"]
 categories = ["development-tools::testing"]
 edition = "2018"
 keywords = ["arbitrary", "testing", "derive", "macro"]
