@@ -1,6 +1,6 @@
 [package]
 name = "derive_arbitrary"
-version = "0.2.0" # Make sure it matches the version of the arbitrary crate itself.
+version = "0.3.0" # Make sure it matches the version of the arbitrary crate itself.
 authors = ["Andre Bogus <bogusandre@gmail.com>"]
 categories = ["development-tools::testing"]
 edition = "2018"
