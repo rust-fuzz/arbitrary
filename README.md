@@ -21,7 +21,7 @@ coverage-guided, mutation-based fuzzers.
 
 ## Documentation
 
-[**Read the API documentation on `docs.rs`!](docs.rs/arbitrary)
+[**Read the API documentation on `docs.rs`!**](docs.rs/arbitrary)
 
 ## Example
 
