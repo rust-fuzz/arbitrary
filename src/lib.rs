@@ -81,6 +81,7 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 /// `enum` type definition:
 ///
 /// ```
+/// # #[cfg(feature = "derive")] mod foo {
 /// use arbitrary::Arbitrary;
 /// use std::collections::HashSet;
 ///
@@ -94,6 +95,7 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 ///     Buddy { name: String },
 ///     Pal { age: usize },
 /// }
+/// # }
 /// ```
 ///
 /// Every member of the `struct` or `enum` must also implement `Arbitrary`.
@@ -107,12 +109,13 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 /// [`Unstructured`][crate::Unstructured] type helps you with these tasks.
 ///
 /// ```
-/// use arbitrary::{Arbitrary, Result, Unstructured};
+/// # #[cfg(feature = "derive")] mod foo {
 /// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
 /// # impl<T> MyCollection<T> {
 /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
 /// #     pub fn insert(&mut self, element: T) {}
 /// # }
+/// use arbitrary::{Arbitrary, Result, Unstructured};
 ///
 /// impl<T> Arbitrary for MyCollection<T>
 /// where
@@ -132,6 +135,7 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 ///         Ok(my_collection)
 ///     }
 /// }
+/// # }
 /// ```
 pub trait Arbitrary: Sized + 'static {
     /// Generate an arbitrary value of `Self` from the given unstructured data.
@@ -150,6 +154,7 @@ pub trait Arbitrary: Sized + 'static {
     /// less efficient.
     ///
     /// ```
+    /// # #[cfg(feature = "derive")] fn foo() {
     /// use arbitrary::{Arbitrary, Unstructured};
     ///
     /// #[derive(Arbitrary)]
@@ -169,6 +174,7 @@ pub trait Arbitrary: Sized + 'static {
     /// #   let do_stuff = |_| {};
     ///     do_stuff(value);
     /// }
+    /// # }
     /// ```
     ///
     /// See also the documentation for [`Unstructured`][crate::Unstructured].

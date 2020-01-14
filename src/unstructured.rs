@@ -42,6 +42,7 @@ use std::{mem, ops};
 /// using that to generate an arbitrary RGB color might look like:
 ///
 /// ```
+/// # #[cfg(feature = "derive")] fn foo() {
 /// use arbitrary::{Arbitrary, Unstructured};
 ///
 /// /// An RGB color.
@@ -64,6 +65,7 @@ use std::{mem, ops};
 /// #   let run_my_color_conversion_checks = |_| {};
 ///     run_my_color_conversion_checks(rgb);
 /// }
+/// # }
 /// ```
 pub struct Unstructured<'a> {
     data: &'a [u8],
@@ -140,7 +142,7 @@ impl<'a> Unstructured<'a> {
     /// # Example
     ///
     /// ```
-    /// # fn main() -> arbitrary::Result<()> {
+    /// # #[cfg(feature="derive")] fn foo() -> arbitrary::Result<()> {
     /// use arbitrary::{Arbitrary, Unstructured};
     ///
     /// #[derive(Arbitrary)]
