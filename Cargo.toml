@@ -1,6 +1,6 @@
 [package]
 name = "arbitrary"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
 categories = ["development-tools::testing"]
 edition = "2018"

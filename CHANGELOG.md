@@ -28,6 +28,17 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.3.2
+
+Released 2020-01-15.
+
+### Fixed
+
+* Fixed an over-eager assertion condition in `Unstructured::int_in_range` that
+  would incorrectly trigger when given valid ranges of length one.
+
+--------------------------------------------------------------------------------
+
 ## 0.3.1
 
 Released 2020-01-14.
