@@ -30,6 +30,16 @@ Released YYYY-MM-DD.
 
 ## 0.3.2
 
+Released 2020-01-16.
+
+### Changed
+
+* Updated the custom derive's dependencies.
+
+--------------------------------------------------------------------------------
+
+## 0.3.2
+
 Released 2020-01-15.
 
 ### Fixed
