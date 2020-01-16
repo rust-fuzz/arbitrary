@@ -306,7 +306,7 @@ impl<'a> Unstructured<'a> {
         let start = range.start();
         let end = range.end();
         assert!(
-            start < end,
+            start <= end,
             "`arbitrary::Unstructured::int_in_range` requires a non-empty range"
         );
 
@@ -628,18 +628,32 @@ impl_int! {
     isize: i128;
 }
 
-#[test]
-fn test_byte_size() {
-    let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);
-    // Should take one byte off the end
-    assert_eq!(u.arbitrary_byte_size().unwrap(), 6);
-    assert_eq!(u.len(), 9);
-    let mut v = vec![];
-    v.resize(260, 0);
-    v.push(1);
-    v.push(4);
-    let mut u = Unstructured::new(&v);
-    // Should read two bytes off the end
-    assert_eq!(u.arbitrary_byte_size().unwrap(), 0x104);
-    assert_eq!(u.len(), 260);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_byte_size() {
+        let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);
+        // Should take one byte off the end
+        assert_eq!(u.arbitrary_byte_size().unwrap(), 6);
+        assert_eq!(u.len(), 9);
+        let mut v = vec![];
+        v.resize(260, 0);
+        v.push(1);
+        v.push(4);
+        let mut u = Unstructured::new(&v);
+        // Should read two bytes off the end
+        assert_eq!(u.arbitrary_byte_size().unwrap(), 0x104);
+        assert_eq!(u.len(), 260);
+    }
+
+    #[test]
+    fn int_in_range_of_one() {
+        let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);
+        let x = u.int_in_range(0..=0).unwrap();
+        assert_eq!(x, 0);
+        let choice = *u.choose(&[42]).unwrap();
+        assert_eq!(choice, 42)
+    }
 }
