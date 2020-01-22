@@ -212,7 +212,7 @@ impl<'a> Unstructured<'a> {
         ElementType: Arbitrary,
     {
         let byte_size = self.arbitrary_byte_size()?;
-        let (lower, upper) = <ElementType as Arbitrary>::size_hint();
+        let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
         let elem_size = upper.unwrap_or_else(|| lower * 2);
         let elem_size = std::cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
@@ -459,7 +459,7 @@ impl<'a> Unstructured<'a> {
     pub fn arbitrary_take_rest_iter<ElementType: Arbitrary>(
         self,
     ) -> Result<ArbitraryTakeRestIter<'a, ElementType>> {
-        let (lower, upper) = ElementType::size_hint();
+        let (lower, upper) = ElementType::size_hint(0);
 
         let elem_size = upper.unwrap_or(lower * 2);
         let elem_size = std::cmp::max(1, elem_size);

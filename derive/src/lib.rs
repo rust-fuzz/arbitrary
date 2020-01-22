@@ -74,13 +74,31 @@ fn gen_size_hint_method(s: &Structure) -> TokenStream {
         let tys = v.ast().fields.iter().map(|f| &f.ty);
         sizes.push(quote! {
             arbitrary::size_hint::and_all(&[
-                #( <#tys as Arbitrary>::size_hint() ),*
+                #( <#tys as Arbitrary>::size_hint(depth) ),*
             ])
         });
     }
-    quote! {
-        fn size_hint() -> (usize, Option<usize>) {
-            arbitrary::size_hint::or_all(&[ #( #sizes ),* ])
+    if s.variants().len() > 1 {
+        // Need to add the discriminant's size for `enum`s.
+        quote! {
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                arbitrary::size_hint::and(
+                    <u32 as Arbitrary>::size_hint(depth),
+                    arbitrary::size_hint::recursion_guard(depth, |depth| {
+                        arbitrary::size_hint::or_all(&[ #( #sizes ),* ])
+                    }),
+                )
+            }
+        }
+    } else {
+        quote! {
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                arbitrary::size_hint::recursion_guard(depth, |depth| {
+                    arbitrary::size_hint::or_all(&[ #( #sizes ),* ])
+                })
+            }
         }
     }
 }

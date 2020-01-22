@@ -202,8 +202,62 @@ pub trait Arbitrary: Sized + 'static {
     /// default with a better implementation. The
     /// [`size_hint`][crate::size_hint] module will help with this task.
     ///
+    /// ## The `depth` Parameter
+    ///
+    /// If you 100% know that the type you are implementing `Arbitrary` for is
+    /// not a recursive type, or your implementation is not transitively calling
+    /// any other `size_hint` methods, you can ignore the `depth` parameter.
+    /// Note that if you are implementing `Arbitrary` for a generic type, you
+    /// cannot guarantee the lack of type recrusion!
+    ///
+    /// Otherwise, you need to use
+    /// [`arbitrary::size_hint::recursion_guard(depth)`][crate::size_hint::recursion_guard]
+    /// to prevent potential infinite recursion when calculating size hints for
+    /// potentially recursive types:
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured, size_hint};
+    ///
+    /// // This can potentially be a recursive type if `L` or `R` contain
+    /// // something like `Box<Option<MyEither<L, R>>>`!
+    /// enum MyEither<L, R> {
+    ///     Left(L),
+    ///     Right(R),
+    /// }
+    ///
+    /// impl<L, R> Arbitrary for MyEither<L, R>
+    /// where
+    ///     L: Arbitrary,
+    ///     R: Arbitrary,
+    /// {
+    ///     fn arbitrary(u: &mut Unstructured) -> arbitrary::Result<Self> {
+    ///         // ...
+    /// #       unimplemented!()
+    ///     }
+    ///
+    ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    ///         // Protect against potential infinite recursion with
+    ///         // `recursion_guard`.
+    ///         size_hint::recursion_guard(depth, |depth| {
+    ///             // If we aren't too deep, then `recursion_guard` calls
+    ///             // this closure, which implements the natural size hint.
+    ///             // Don't forget to use the new `depth` in all nested
+    ///             // `size_hint` calls! We recommend shadowing the
+    ///             // parameter, like what is done here, so that you can't
+    ///             // accidentally use the wrong depth.
+    ///             size_hint::or(
+    ///                 <L as Arbitrary>::size_hint(depth),
+    ///                 <R as Arbitrary>::size_hint(depth),
+    ///             )
+    ///         })
+    ///     }
+    /// }
+    /// ```
+    ///
     /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        let _ = depth;
         (0, None)
     }
 
@@ -232,7 +286,8 @@ impl Arbitrary for () {
         Ok(())
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
     }
 }
@@ -242,8 +297,9 @@ impl Arbitrary for bool {
         Ok(<u8 as Arbitrary>::arbitrary(u)? & 1 == 1)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <u8 as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <u8 as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -265,7 +321,8 @@ macro_rules! impl_arbitrary_for_integers {
                     Ok(x as $ty)
                 }
 
-                fn size_hint() -> (usize, Option<usize>) {
+                #[inline]
+                fn size_hint(_depth: usize) -> (usize, Option<usize>) {
                     let n = mem::size_of::<$ty>();
                     (n, Some(n))
                 }
@@ -312,8 +369,9 @@ macro_rules! impl_arbitrary_for_floats {
                     Ok(Self::from_bits(<$unsigned as Arbitrary>::arbitrary(u)?))
                 }
 
-                fn size_hint() -> (usize, Option<usize>) {
-                    <$unsigned as Arbitrary>::size_hint()
+                #[inline]
+                fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                    <$unsigned as Arbitrary>::size_hint(depth)
                 }
 
                 fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -373,8 +431,9 @@ impl Arbitrary for char {
         }
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <u32 as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <u32 as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -391,8 +450,9 @@ impl Arbitrary for AtomicBool {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <bool as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <bool as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -409,8 +469,9 @@ impl Arbitrary for AtomicIsize {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <isize as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <isize as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -424,8 +485,9 @@ impl Arbitrary for AtomicUsize {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <usize as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <usize as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -442,10 +504,11 @@ impl Arbitrary for Duration {
         ))
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
-            <u64 as Arbitrary>::size_hint(),
-            <u32 as Arbitrary>::size_hint(),
+            <u64 as Arbitrary>::size_hint(depth),
+            <u32 as Arbitrary>::size_hint(depth),
         )
     }
 
@@ -467,10 +530,11 @@ impl<A: Arbitrary> Arbitrary for Option<A> {
         })
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
-            <bool as Arbitrary>::size_hint(),
-            <A as Arbitrary>::size_hint(),
+            <bool as Arbitrary>::size_hint(depth),
+            crate::size_hint::or((0, Some(0)), <A as Arbitrary>::size_hint(depth)),
         )
     }
 
@@ -492,10 +556,14 @@ impl<A: Arbitrary, B: Arbitrary> Arbitrary for std::result::Result<A, B> {
         })
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
-            <bool as Arbitrary>::size_hint(),
-            crate::size_hint::or(<A as Arbitrary>::size_hint(), <B as Arbitrary>::size_hint()),
+            <bool as Arbitrary>::size_hint(depth),
+            crate::size_hint::or(
+                <A as Arbitrary>::size_hint(depth),
+                <B as Arbitrary>::size_hint(depth),
+            ),
         )
     }
 
@@ -524,10 +592,11 @@ macro_rules! arbitrary_tuple {
                 Ok(($($xs,)* $last,))
             }
 
-            fn size_hint() -> (usize, Option<usize>) {
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
                 crate::size_hint::and_all(&[
-                    <$last as Arbitrary>::size_hint(),
-                    $( <$xs as Arbitrary>::size_hint() ),*
+                    <$last as Arbitrary>::size_hint(depth),
+                    $( <$xs as Arbitrary>::size_hint(depth) ),*
                 ])
             }
 
@@ -566,10 +635,11 @@ macro_rules! arbitrary_array {
                 ])
             }
 
-            fn size_hint() -> (usize, Option<usize>) {
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
                 crate::size_hint::and_all(&[
-                    <$t as Arbitrary>::size_hint(),
-                    $( <$ts as Arbitrary>::size_hint() ),*
+                    <$t as Arbitrary>::size_hint(depth),
+                    $( <$ts as Arbitrary>::size_hint(depth) ),*
                 ])
             }
 
@@ -645,8 +715,9 @@ impl<A: Arbitrary> Arbitrary for Vec<A> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -663,8 +734,9 @@ impl<K: Arbitrary + Ord, V: Arbitrary> Arbitrary for BTreeMap<K, V> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -683,8 +755,9 @@ impl<A: Arbitrary + Ord> Arbitrary for BTreeSet<A> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -702,8 +775,9 @@ impl<A: Arbitrary + Ord> Arbitrary for BinaryHeap<A> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -721,8 +795,9 @@ impl<K: Arbitrary + Eq + ::std::hash::Hash, V: Arbitrary> Arbitrary for HashMap<
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -741,8 +816,9 @@ impl<A: Arbitrary + Eq + ::std::hash::Hash> Arbitrary for HashSet<A> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -760,8 +836,9 @@ impl<A: Arbitrary> Arbitrary for LinkedList<A> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -779,8 +856,9 @@ impl<A: Arbitrary> Arbitrary for VecDeque<A> {
         u.arbitrary_take_rest_iter()?.collect()
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -798,8 +876,11 @@ where
         Arbitrary::arbitrary(u).map(Cow::Owned)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <<A as ToOwned>::Owned as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::recursion_guard(depth, |depth| {
+            <<A as ToOwned>::Owned as Arbitrary>::size_hint(depth)
+        })
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -826,8 +907,9 @@ impl Arbitrary for String {
             .map(Into::into)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(), (0, None))
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -844,8 +926,9 @@ impl Arbitrary for CString {
         })
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <Vec<u8> as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <Vec<u8> as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -861,8 +944,9 @@ impl Arbitrary for OsString {
         <String as Arbitrary>::arbitrary(u).map(From::from)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <String as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -879,8 +963,9 @@ impl Arbitrary for PathBuf {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <OsString as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <OsString as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -894,8 +979,9 @@ impl<A: Arbitrary> Arbitrary for Box<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::recursion_guard(depth, |depth| <A as Arbitrary>::size_hint(depth))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -908,8 +994,9 @@ impl<A: Arbitrary> Arbitrary for Box<[A]> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <Vec<A> as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <Vec<A> as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -922,8 +1009,9 @@ impl Arbitrary for Box<str> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <String as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -950,8 +1038,9 @@ impl<A: Arbitrary> Arbitrary for Arc<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::recursion_guard(depth, |depth| <A as Arbitrary>::size_hint(depth))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -964,8 +1053,9 @@ impl<A: Arbitrary> Arbitrary for Rc<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::recursion_guard(depth, |depth| <A as Arbitrary>::size_hint(depth))
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -978,8 +1068,9 @@ impl<A: Arbitrary> Arbitrary for Cell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint(depth)
     }
 
     // Note: can't implement `shrink` without either more trait bounds on `A`
@@ -992,8 +1083,9 @@ impl<A: Arbitrary> Arbitrary for RefCell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -1007,8 +1099,9 @@ impl<A: Arbitrary> Arbitrary for UnsafeCell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint(depth)
     }
 
     // We can't non-trivially (i.e. not an empty iterator) implement `shrink` in
@@ -1020,8 +1113,9 @@ impl<A: Arbitrary> Arbitrary for Mutex<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -1037,7 +1131,8 @@ impl<A: Arbitrary> Arbitrary for iter::Empty<A> {
         Ok(iter::empty())
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
     }
 
@@ -1049,7 +1144,8 @@ impl<A: Arbitrary> Arbitrary for ::std::marker::PhantomData<A> {
         Ok(::std::marker::PhantomData)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
     }
 
@@ -1061,8 +1157,9 @@ impl<A: Arbitrary> Arbitrary for ::std::num::Wrapping<A> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
     }
 
-    fn size_hint() -> (usize, Option<usize>) {
-        <A as Arbitrary>::size_hint()
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <A as Arbitrary>::size_hint(depth)
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -1239,10 +1336,10 @@ mod test {
 
     #[test]
     fn size_hint_for_tuples() {
-        assert_eq!((7, Some(7)), <(bool, u16, i32) as Arbitrary>::size_hint());
+        assert_eq!((7, Some(7)), <(bool, u16, i32) as Arbitrary>::size_hint(0));
         assert_eq!(
             (1 + mem::size_of::<usize>(), None),
-            <(u8, Vec<u8>) as Arbitrary>::size_hint()
+            <(u8, Vec<u8>) as Arbitrary>::size_hint(0)
         );
     }
 }
