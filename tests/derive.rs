@@ -30,7 +30,7 @@ fn struct_with_named_fields() {
         ]
     );
 
-    assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint());
+    assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint(0));
 }
 
 #[derive(Copy, Clone, Debug, Arbitrary)]
@@ -51,7 +51,7 @@ fn tuple_struct() {
         assert_eq!(b, s.1);
     }
 
-    assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint());
+    assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint(0));
 }
 
 #[derive(Clone, Debug, Arbitrary)]
@@ -144,5 +144,27 @@ fn derive_enum() {
     assert!(saw_tuple);
     assert!(saw_struct);
 
-    assert_eq!((13, Some(13)), <MyEnum as Arbitrary>::size_hint());
+    assert_eq!((4, Some(17)), <MyEnum as Arbitrary>::size_hint(0));
+}
+
+#[derive(Arbitrary, Debug)]
+enum RecursiveTree {
+    Leaf,
+    Node {
+        left: Box<RecursiveTree>,
+        right: Box<RecursiveTree>,
+    },
+}
+
+#[test]
+fn recursive() {
+    let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+    let _rec: RecursiveTree = arbitrary_from(&raw);
+
+    let (lower, upper) = <RecursiveTree as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 4, "need a u32 for the discriminant at minimum");
+    assert!(
+        upper.is_none(),
+        "potentially infinitely recursive, so no upper bound"
+    );
 }
