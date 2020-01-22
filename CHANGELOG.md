@@ -28,6 +28,41 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.0
+
+Released 2020-01-22.
+
+This is technically a breaking change, but we expect that nearly everyone should
+be able to upgrade without any compilation errors. The only exception is if you
+were implementing the `Arbitrary::size_hint` method by hand. If so, see the
+"changed" section below and the [API docs for
+`Arbitrary::shrink`](https://docs.rs/arbitrary/0.4.0/arbitrary/trait.Arbitrary.html#method.size_hint)
+for details.
+
+### Added
+
+* Added [the `arbitary::size_hint::recursion_guard` helper
+  function][recursion_guard] for guarding against infinite recursion in
+  `size_hint` implementations for recursive types.
+
+### Changed
+
+* The `Arbitrary::size_hint` signature now takes a `depth: usize`
+  parameter. This should be passed along unmodified to any nested calls of other
+  `size_hint` methods. If you're implementing `size_hint` for a recursive type
+  (like a linked list or tree) or a generic type with type parameters, you
+  should use [the new `arbitrary::size_hint::recursion_guard` helper
+  function][recursion_guard].
+
+### Fixed
+
+* Fixed infinite recursion in generated `size_hint` implementations
+  from `#[derive(Arbitrary)]` for recursive types.
+
+[recursion_guard]: https://docs.rs/arbitrary/0.4.0/arbitrary/size_hint/fn.recursion_guard.html
+
+--------------------------------------------------------------------------------
+
 ## 0.3.2
 
 Released 2020-01-16.
