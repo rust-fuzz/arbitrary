@@ -28,6 +28,18 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.1
+
+Released 2020-03-18.
+
+### Removed
+
+* Removed an internal dependency on the `synstructure` crate when the `derive`
+  feature is enabled. This should not have any visible downstream effects other
+  than faster build times!
+
+--------------------------------------------------------------------------------
+
 ## 0.4.0
 
 Released 2020-01-22.

@@ -1,7 +1,7 @@
 [package]
 name = "arbitrary"
-version = "0.4.0"
-authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
+version = "0.4.1"
+authors = ["Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>", "The Rust-Fuzz Project Developers"]
 categories = ["development-tools::testing"]
 edition = "2018"
 keywords = ["arbitrary", "testing"]
