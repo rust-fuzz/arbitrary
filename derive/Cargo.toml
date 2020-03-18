@@ -13,8 +13,8 @@ documentation = "https://docs.rs/arbitrary/"
 
 [dependencies]
 proc-macro2 = "1.0"
-syn = "1.0"
-synstructure = "0.12"
+quote = "1.0"
+syn = { version = "1.0", features = ['derive'] }
 
 [lib]
 proc_macro = true
