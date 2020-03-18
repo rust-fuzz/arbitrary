@@ -168,3 +168,19 @@ fn recursive() {
         "potentially infinitely recursive, so no upper bound"
     );
 }
+
+#[derive(Arbitrary, Debug)]
+struct Generic<T> {
+    inner: T,
+}
+
+#[test]
+fn generics() {
+    let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+    let gen: Generic<bool> = arbitrary_from(&raw);
+    assert!(gen.inner);
+
+    let (lower, upper) = <Generic<u32> as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 4);
+    assert_eq!(upper, Some(4));
+}
