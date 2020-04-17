@@ -28,6 +28,18 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.2
+
+Released 2020-04-17.
+
+### Changed
+
+* We forgot to release a new version of the `derive_arbitrary` crate last
+  release. This release fixes that and so the `synstructure` dependency is
+  finally actually removed in the cargo releases.
+
+--------------------------------------------------------------------------------
+
 ## 0.4.1
 
 Released 2020-03-18.
