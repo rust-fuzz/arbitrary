@@ -130,7 +130,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> TokenStream {
         let tys = fields.iter().map(|f| &f.ty);
         quote! {
             arbitrary::size_hint::and_all(&[
-                #( <#tys as Arbitrary>::size_hint(depth) ),*
+                #( <#tys as arbitrary::Arbitrary>::size_hint(depth) ),*
             ])
         }
     };
