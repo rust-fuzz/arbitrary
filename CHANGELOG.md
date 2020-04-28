@@ -28,6 +28,17 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.3
+
+Released 2020-04-28.
+
+### Fixed
+
+* Fixed the custom derive when used via its full path (like
+  `#[derive(arbitrary::Arbitrary)]` rather than like `#[derive(Arbitrary)]`).
+
+--------------------------------------------------------------------------------
+
 ## 0.4.2
 
 Released 2020-04-17.
