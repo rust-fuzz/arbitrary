@@ -152,7 +152,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> TokenStream {
                 #[inline]
                 fn size_hint(depth: usize) -> (usize, Option<usize>) {
                     arbitrary::size_hint::and(
-                        <u32 as Arbitrary>::size_hint(depth),
+                        <u32 as arbitrary::Arbitrary>::size_hint(depth),
                         arbitrary::size_hint::recursion_guard(depth, |depth| {
                             arbitrary::size_hint::or_all(&[ #( #variants ),* ])
                         }),
