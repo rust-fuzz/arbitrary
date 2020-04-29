@@ -28,6 +28,17 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+
+## 0.4.4
+
+Released 2020-04-29.
+
+### Fixed
+
+* Fixed the custom derive for enums when used via its full path (like
+  `#[derive(arbitrary::Arbitrary)]` rather than like `#[derive(Arbitrary)]`).
+
+
 ## 0.4.3
 
 Released 2020-04-28.
