@@ -677,6 +677,25 @@ macro_rules! arbitrary_array {
     ($n: expr,) => {};
 }
 
+impl<T: Arbitrary> Arbitrary for [T; 0] {
+    fn arbitrary(_: &mut Unstructured<'_>) -> Result<[T; 0]> {
+        Ok([])
+    }
+
+    fn arbitrary_take_rest(_: Unstructured<'_>) -> Result<[T; 0]> {
+        Ok([])
+    }
+
+    #[inline]
+    fn size_hint(_: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and_all(&[])
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        Box::new(iter::from_fn(|| None))
+    }
+}
+
 arbitrary_array! { 32, (T, a) (T, b) (T, c) (T, d) (T, e) (T, f) (T, g) (T, h)
 (T, i) (T, j) (T, k) (T, l) (T, m) (T, n) (T, o) (T, p)
 (T, q) (T, r) (T, s) (T, u) (T, v) (T, w) (T, x) (T, y)
