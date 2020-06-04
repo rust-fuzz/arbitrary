@@ -502,6 +502,34 @@ impl Arbitrary for AtomicUsize {
     }
 }
 
+impl<A: Arbitrary + Copy + PartialEq + PartialOrd> Arbitrary for std::ops::Range<A> {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+        let (mut start, mut end): (A, A) = Arbitrary::arbitrary(u)?;
+        if start > end {
+            std::mem::swap(&mut start, &mut end);
+        }
+        Ok(Self { start, end })
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(
+            <A as Arbitrary>::size_hint(depth),
+            <A as Arbitrary>::size_hint(depth),
+        )
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let pair = (self.start, self.end);
+        Box::new(pair.shrink().map(|(mut start, mut end)| {
+            if start > end {
+                std::mem::swap(&mut start, &mut end);
+            }
+            Self { start, end }
+        }))
+    }
+}
+
 impl Arbitrary for Duration {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(Self::new(
