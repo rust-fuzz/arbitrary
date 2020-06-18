@@ -504,7 +504,13 @@ impl Arbitrary for AtomicUsize {
 }
 
 macro_rules! impl_range {
-    ($range:ty, $value_closure:expr, $value_ty:ty, $fun:ident($fun_closure:expr)) => {
+    (
+        $range:ty,
+        $value_closure:expr,
+        $value_ty:ty,
+        $fun:ident($fun_closure:expr),
+        $size_hint_closure:expr
+    ) => {
         impl<A> Arbitrary for $range
         where
             A: Arbitrary + Clone + PartialOrd,
@@ -516,10 +522,7 @@ macro_rules! impl_range {
 
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                crate::size_hint::and(
-                    <A as Arbitrary>::size_hint(depth),
-                    <A as Arbitrary>::size_hint(depth),
-                )
+                $size_hint_closure(depth)
             }
 
             fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
@@ -534,31 +537,42 @@ impl_range!(
     Range<A>,
     |r: &Range<A>| (r.start.clone(), r.end.clone()),
     (A, A),
-    bounded_range(|(a, b)| a..b)
+    bounded_range(|(a, b)| a..b),
+    |depth| crate::size_hint::and(
+        <A as Arbitrary>::size_hint(depth),
+        <A as Arbitrary>::size_hint(depth)
+    )
 );
 impl_range!(
     RangeFrom<A>,
     |r: &RangeFrom<A>| r.start.clone(),
     A,
-    unbounded_range(|a| a..)
+    unbounded_range(|a| a..),
+    |depth| <A as Arbitrary>::size_hint(depth)
 );
 impl_range!(
     RangeInclusive<A>,
     |r: &RangeInclusive<A>| (r.start().clone(), r.end().clone()),
     (A, A),
-    bounded_range(|(a, b)| a..=b)
+    bounded_range(|(a, b)| a..=b),
+    |depth| crate::size_hint::and(
+        <A as Arbitrary>::size_hint(depth),
+        <A as Arbitrary>::size_hint(depth)
+    )
 );
 impl_range!(
     RangeTo<A>,
     |r: &RangeTo<A>| r.end.clone(),
     A,
-    unbounded_range(|b| ..b)
+    unbounded_range(|b| ..b),
+    |depth| <A as Arbitrary>::size_hint(depth)
 );
 impl_range!(
     RangeToInclusive<A>,
     |r: &RangeToInclusive<A>| r.end.clone(),
     A,
-    unbounded_range(|b| ..=b)
+    unbounded_range(|b| ..=b),
+    |depth| <A as Arbitrary>::size_hint(depth)
 );
 
 fn bounded_range<CB, I, R>(bounds: (I, I), cb: CB) -> R
