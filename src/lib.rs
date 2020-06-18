@@ -37,7 +37,7 @@ pub mod size_hint;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::iter;
 use core::mem;
-use core::ops::{Range, RangeBounds, RangeInclusive};
+use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
 use std::borrow::{Cow, ToOwned};
@@ -503,64 +503,97 @@ impl Arbitrary for AtomicUsize {
     }
 }
 
-impl<A> Arbitrary for Range<A>
-where
-    A: Arbitrary + Clone + PartialOrd,
-{
-    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let (start, end): (A, A) = Arbitrary::arbitrary(u)?;
-        Ok(to_range(start, end, |a, b| a..b))
-    }
+macro_rules! impl_range {
+    (
+        $range:ty,
+        $value_closure:expr,
+        $value_ty:ty,
+        $fun:ident($fun_closure:expr),
+        $size_hint_closure:expr
+    ) => {
+        impl<A> Arbitrary for $range
+        where
+            A: Arbitrary + Clone + PartialOrd,
+        {
+            fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+                let value: $value_ty = Arbitrary::arbitrary(u)?;
+                Ok($fun(value, $fun_closure))
+            }
 
-    #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(
-            <A as Arbitrary>::size_hint(depth),
-            <A as Arbitrary>::size_hint(depth),
-        )
-    }
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                $size_hint_closure(depth)
+            }
 
-    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        let pair = (self.start.clone(), self.end.clone());
-        let f = |(start, end)| to_range(start, end, |a, b| a..b);
-        Box::new(pair.shrink().map(f))
-    }
+            fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+                let value: $value_ty = $value_closure(self);
+                Box::new(value.shrink().map(|v| $fun(v, $fun_closure)))
+            }
+        }
+    };
 }
 
-impl<A> Arbitrary for RangeInclusive<A>
+impl_range!(
+    Range<A>,
+    |r: &Range<A>| (r.start.clone(), r.end.clone()),
+    (A, A),
+    bounded_range(|(a, b)| a..b),
+    |depth| crate::size_hint::and(
+        <A as Arbitrary>::size_hint(depth),
+        <A as Arbitrary>::size_hint(depth)
+    )
+);
+impl_range!(
+    RangeFrom<A>,
+    |r: &RangeFrom<A>| r.start.clone(),
+    A,
+    unbounded_range(|a| a..),
+    |depth| <A as Arbitrary>::size_hint(depth)
+);
+impl_range!(
+    RangeInclusive<A>,
+    |r: &RangeInclusive<A>| (r.start().clone(), r.end().clone()),
+    (A, A),
+    bounded_range(|(a, b)| a..=b),
+    |depth| crate::size_hint::and(
+        <A as Arbitrary>::size_hint(depth),
+        <A as Arbitrary>::size_hint(depth)
+    )
+);
+impl_range!(
+    RangeTo<A>,
+    |r: &RangeTo<A>| r.end.clone(),
+    A,
+    unbounded_range(|b| ..b),
+    |depth| <A as Arbitrary>::size_hint(depth)
+);
+impl_range!(
+    RangeToInclusive<A>,
+    |r: &RangeToInclusive<A>| r.end.clone(),
+    A,
+    unbounded_range(|b| ..=b),
+    |depth| <A as Arbitrary>::size_hint(depth)
+);
+
+fn bounded_range<CB, I, R>(bounds: (I, I), cb: CB) -> R
 where
-    A: Arbitrary + Clone + PartialOrd,
-{
-    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let (start, end): (A, A) = Arbitrary::arbitrary(u)?;
-        Ok(to_range(start, end, |a, b| a..=b))
-    }
-
-    #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(
-            <A as Arbitrary>::size_hint(depth),
-            <A as Arbitrary>::size_hint(depth),
-        )
-    }
-
-    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        let pair = (self.start().clone(), self.end().clone());
-        let f = |(start, end)| to_range(start, end, |a, b| a..=b);
-        Box::new(pair.shrink().map(f))
-    }
-}
-
-fn to_range<CB, I, R>(mut start: I, mut end: I, cb: CB) -> R
-where
-    CB: Fn(I, I) -> R,
+    CB: Fn((I, I)) -> R,
     I: PartialOrd,
     R: RangeBounds<I>,
 {
+    let (mut start, mut end) = bounds;
     if start > end {
         mem::swap(&mut start, &mut end);
     }
-    cb(start, end)
+    cb((start, end))
+}
+
+fn unbounded_range<CB, I, R>(bound: I, cb: CB) -> R
+where
+    CB: Fn(I) -> R,
+    R: RangeBounds<I>,
+{
+    cb(bound)
 }
 
 impl Arbitrary for Duration {
