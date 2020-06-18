@@ -1,6 +1,6 @@
 [package]
 name = "derive_arbitrary"
-version = "0.4.4" # Make sure it matches the version of the arbitrary crate itself.
+version = "0.4.5" # Make sure it matches the version of the arbitrary crate itself.
 authors = ["The Rust-Fuzz Project Developers", "Nick Fitzgerald <fitzgen@gmail.com>", "Manish Goregaokar <manishsmail@gmail.com>", "Andre Bogus <bogusandre@gmail.com>"]
 categories = ["development-tools::testing"]
 edition = "2018"

@@ -28,6 +28,16 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.5
+
+Released 2020-06-18.
+
+### Added
+
+* Implement `Arbitrary` for zero length arrays.
+* Implement `Arbitrary` for `Range` and `RangeInclusive`.
+
+--------------------------------------------------------------------------------
 
 ## 0.4.4
 
