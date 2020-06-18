@@ -34,18 +34,19 @@ pub use unstructured::Unstructured;
 
 pub mod size_hint;
 
+use core::cell::{Cell, RefCell, UnsafeCell};
+use core::iter;
+use core::mem;
+use core::ops::{Range, RangeBounds, RangeInclusive};
+use core::str;
+use core::time::Duration;
 use std::borrow::{Cow, ToOwned};
-use std::cell::{Cell, RefCell, UnsafeCell};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
-use std::iter;
-use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::str;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 fn empty<T: 'static>() -> Box<dyn Iterator<Item = T>> {
     Box::new(iter::empty())
@@ -502,13 +503,13 @@ impl Arbitrary for AtomicUsize {
     }
 }
 
-impl<A: Arbitrary + Copy + PartialEq + PartialOrd> Arbitrary for std::ops::Range<A> {
+impl<A> Arbitrary for Range<A>
+where
+    A: Arbitrary + Clone + PartialOrd,
+{
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let (mut start, mut end): (A, A) = Arbitrary::arbitrary(u)?;
-        if start > end {
-            std::mem::swap(&mut start, &mut end);
-        }
-        Ok(Self { start, end })
+        let (start, end): (A, A) = Arbitrary::arbitrary(u)?;
+        Ok(to_range(start, end, |a, b| a..b))
     }
 
     #[inline]
@@ -520,14 +521,46 @@ impl<A: Arbitrary + Copy + PartialEq + PartialOrd> Arbitrary for std::ops::Range
     }
 
     fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        let pair = (self.start, self.end);
-        Box::new(pair.shrink().map(|(mut start, mut end)| {
-            if start > end {
-                std::mem::swap(&mut start, &mut end);
-            }
-            Self { start, end }
-        }))
+        let pair = (self.start.clone(), self.end.clone());
+        let f = |(start, end)| to_range(start, end, |a, b| a..b);
+        Box::new(pair.shrink().map(f))
     }
+}
+
+impl<A> Arbitrary for RangeInclusive<A>
+where
+    A: Arbitrary + Clone + PartialOrd,
+{
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+        let (start, end): (A, A) = Arbitrary::arbitrary(u)?;
+        Ok(to_range(start, end, |a, b| a..=b))
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and(
+            <A as Arbitrary>::size_hint(depth),
+            <A as Arbitrary>::size_hint(depth),
+        )
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+        let pair = (self.start().clone(), self.end().clone());
+        let f = |(start, end)| to_range(start, end, |a, b| a..=b);
+        Box::new(pair.shrink().map(f))
+    }
+}
+
+fn to_range<CB, I, R>(mut start: I, mut end: I, cb: CB) -> R
+where
+    CB: Fn(I, I) -> R,
+    I: PartialOrd,
+    R: RangeBounds<I>,
+{
+    if start > end {
+        mem::swap(&mut start, &mut end);
+    }
+    cb(start, end)
 }
 
 impl Arbitrary for Duration {
