@@ -43,7 +43,7 @@ feature:
 # Cargo.toml
 
 [dependencies]
-arbitrary = { version = "0.3.1", features = ["derive"] }
+arbitrary = { version = "0.4", features = ["derive"] }
 ```
 
 And then you can simply add `#[derive(Arbitrary)]` annotations to your types:
