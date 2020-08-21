@@ -1013,10 +1013,22 @@ where
 impl Arbitrary for String {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
-        let bytes = u.get_bytes(size)?;
-        str::from_utf8(bytes)
-            .map_err(|_| Error::IncorrectFormat)
-            .map(Into::into)
+        match str::from_utf8(&u.data[..size]) {
+            Ok(s) => {
+                u.data = &u.data[size..];
+                Ok(s.into())
+            }
+            Err(e) => {
+                let i = e.valid_up_to();
+                let (valid, rest) = u.data.split_at(i);
+                let s = unsafe {
+                    debug_assert!(str::from_utf8(valid).is_ok());
+                    str::from_utf8_unchecked(valid)
+                };
+                u.data = rest;
+                Ok(s.into())
+            }
+        }
     }
 
     fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
@@ -1300,7 +1312,8 @@ mod test {
         assert_eq!(z, [1, 2]);
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [3, 4]);
-        assert!(rb.fill_buffer(&mut z).is_err());
+        rb.fill_buffer(&mut z).unwrap();
+        assert_eq!(z, [0, 0]);
     }
 
     #[test]

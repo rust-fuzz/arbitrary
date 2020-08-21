@@ -68,7 +68,7 @@ use std::{mem, ops};
 /// # }
 /// ```
 pub struct Unstructured<'a> {
-    data: &'a [u8],
+    pub(crate) data: &'a [u8],
 }
 
 impl<'a> Unstructured<'a> {
@@ -222,7 +222,7 @@ impl<'a> Unstructured<'a> {
 
     fn arbitrary_byte_size(&mut self) -> Result<usize> {
         if self.data.len() == 0 {
-            Err(Error::NotEnoughData)
+            Ok(0)
         } else if self.data.len() == 1 {
             self.data = &[];
             Ok(0)
@@ -385,11 +385,16 @@ impl<'a> Unstructured<'a> {
     /// let mut buf = [0; 2];
     /// assert!(u.fill_buffer(&mut buf).is_ok());
     /// assert!(u.fill_buffer(&mut buf).is_ok());
-    /// assert!(u.fill_buffer(&mut buf).is_err());
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        let bytes = self.get_bytes(buffer.len())?;
-        buffer.copy_from_slice(bytes);
+        let n = std::cmp::min(buffer.len(), self.data.len());
+        for i in 0..n {
+            buffer[i] = self.data[i];
+        }
+        for i in self.data.len()..buffer.len() {
+            buffer[i] = 0;
+        }
+        self.data = &self.data[n..];
         Ok(())
     }
 
