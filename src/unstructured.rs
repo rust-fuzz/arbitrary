@@ -445,9 +445,7 @@ impl<'a> Unstructured<'a> {
     pub fn arbitrary_iter<'b, ElementType: Arbitrary>(
         &'b mut self,
     ) -> Result<ArbitraryIter<'a, 'b, ElementType>> {
-        let size = self.arbitrary_len::<ElementType>()?;
         Ok(ArbitraryIter {
-            size,
             u: &mut *self,
             _marker: PhantomData,
         })
@@ -477,18 +475,17 @@ impl<'a> Unstructured<'a> {
 /// Utility iterator produced by [`Unstructured::arbitrary_iter`]
 pub struct ArbitraryIter<'a, 'b, ElementType> {
     u: &'b mut Unstructured<'a>,
-    size: usize,
     _marker: PhantomData<ElementType>,
 }
 
 impl<'a, 'b, ElementType: Arbitrary> Iterator for ArbitraryIter<'a, 'b, ElementType> {
     type Item = Result<ElementType>;
     fn next(&mut self) -> Option<Result<ElementType>> {
-        if self.size == 0 {
-            None
-        } else {
-            self.size -= 1;
+        let keep_going = self.u.arbitrary().unwrap_or(false);
+        if keep_going {
             Some(Arbitrary::arbitrary(self.u))
+        } else {
+            None
         }
     }
 }
