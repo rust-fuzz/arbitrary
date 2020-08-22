@@ -222,7 +222,7 @@ impl<'a> Unstructured<'a> {
 
     fn arbitrary_byte_size(&mut self) -> Result<usize> {
         if self.data.len() == 0 {
-            Err(Error::NotEnoughData)
+            Ok(0)
         } else if self.data.len() == 1 {
             self.data = &[];
             Ok(0)
@@ -385,11 +385,16 @@ impl<'a> Unstructured<'a> {
     /// let mut buf = [0; 2];
     /// assert!(u.fill_buffer(&mut buf).is_ok());
     /// assert!(u.fill_buffer(&mut buf).is_ok());
-    /// assert!(u.fill_buffer(&mut buf).is_err());
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        let bytes = self.get_bytes(buffer.len())?;
-        buffer.copy_from_slice(bytes);
+        let n = std::cmp::min(buffer.len(), self.data.len());
+        for i in 0..n {
+            buffer[i] = self.data[i];
+        }
+        for i in self.data.len()..buffer.len() {
+            buffer[i] = 0;
+        }
+        self.data = &self.data[n..];
         Ok(())
     }
 
@@ -399,6 +404,7 @@ impl<'a> Unstructured<'a> {
     /// a very low-level operation. You should generally prefer calling nested
     /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
     /// `String::arbitrary` over using this method directly.
+    ///
     /// # Example
     ///
     /// ```
@@ -417,6 +423,31 @@ impl<'a> Unstructured<'a> {
         let (for_buf, rest) = self.data.split_at(size);
         self.data = rest;
         Ok(for_buf)
+    }
+
+    /// Peek at `size` number of bytes of the underlying raw input.
+    ///
+    /// Does not consume the bytes, only peeks at them.
+    ///
+    /// Returns `None` if there are not `size` bytes left in the underlying raw
+    /// input.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let u = Unstructured::new(&[1, 2, 3]);
+    ///
+    /// assert_eq!(u.peek_bytes(0).unwrap(), []);
+    /// assert_eq!(u.peek_bytes(1).unwrap(), [1]);
+    /// assert_eq!(u.peek_bytes(2).unwrap(), [1, 2]);
+    /// assert_eq!(u.peek_bytes(3).unwrap(), [1, 2, 3]);
+    ///
+    /// assert!(u.peek_bytes(4).is_none());
+    /// ```
+    pub fn peek_bytes(&self, size: usize) -> Option<&'a [u8]> {
+        self.data.get(..size)
     }
 
     /// Consume all of the rest of the remaining underlying bytes.
@@ -445,9 +476,7 @@ impl<'a> Unstructured<'a> {
     pub fn arbitrary_iter<'b, ElementType: Arbitrary>(
         &'b mut self,
     ) -> Result<ArbitraryIter<'a, 'b, ElementType>> {
-        let size = self.arbitrary_len::<ElementType>()?;
         Ok(ArbitraryIter {
-            size,
             u: &mut *self,
             _marker: PhantomData,
         })
@@ -477,18 +506,17 @@ impl<'a> Unstructured<'a> {
 /// Utility iterator produced by [`Unstructured::arbitrary_iter`]
 pub struct ArbitraryIter<'a, 'b, ElementType> {
     u: &'b mut Unstructured<'a>,
-    size: usize,
     _marker: PhantomData<ElementType>,
 }
 
 impl<'a, 'b, ElementType: Arbitrary> Iterator for ArbitraryIter<'a, 'b, ElementType> {
     type Item = Result<ElementType>;
     fn next(&mut self) -> Option<Result<ElementType>> {
-        if self.size == 0 {
-            None
-        } else {
-            self.size -= 1;
+        let keep_going = self.u.arbitrary().unwrap_or(false);
+        if keep_going {
             Some(Arbitrary::arbitrary(self.u))
+        } else {
+            None
         }
     }
 }

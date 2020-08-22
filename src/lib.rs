@@ -113,7 +113,7 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 /// # #[cfg(feature = "derive")] mod foo {
 /// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
 /// # impl<T> MyCollection<T> {
-/// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
+/// #     pub fn new() -> Self { MyCollection { _t: std::marker::PhantomData } }
 /// #     pub fn insert(&mut self, element: T) {}
 /// # }
 /// use arbitrary::{Arbitrary, Result, Unstructured};
@@ -123,14 +123,14 @@ fn once<T: 'static>(val: T) -> Box<dyn Iterator<Item = T>> {
 ///     T: Arbitrary,
 /// {
 ///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-///         // Get the number of `T`s we should insert into our collection.
-///         let len = u.arbitrary_len::<T>()?;
+///         // Get an iterator of arbitrary `T`s.
+///         let iter = u.arbitrary_iter::<T>()?;
 ///
-///         // And then create a collection of that length!
-///         let mut my_collection = MyCollection::with_capacity(len);
-///         for _ in 0..len {
-///             let element = T::arbitrary(u)?;
-///             my_collection.insert(element);
+///         // And then create a collection!
+///         let mut my_collection = MyCollection::new();
+///         for elem_result in iter {
+///             let elem = elem_result?;
+///             my_collection.insert(elem);
 ///         }
 ///
 ///         Ok(my_collection)
@@ -1013,10 +1013,21 @@ where
 impl Arbitrary for String {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
-        let bytes = u.get_bytes(size)?;
-        str::from_utf8(bytes)
-            .map_err(|_| Error::IncorrectFormat)
-            .map(Into::into)
+        match str::from_utf8(&u.peek_bytes(size).unwrap()) {
+            Ok(s) => {
+                u.get_bytes(size).unwrap();
+                Ok(s.into())
+            }
+            Err(e) => {
+                let i = e.valid_up_to();
+                let valid = u.get_bytes(i).unwrap();
+                let s = unsafe {
+                    debug_assert!(str::from_utf8(valid).is_ok());
+                    str::from_utf8_unchecked(valid)
+                };
+                Ok(s.into())
+            }
+        }
     }
 
     fn arbitrary_take_rest(u: Unstructured<'_>) -> Result<Self> {
@@ -1300,7 +1311,8 @@ mod test {
         assert_eq!(z, [1, 2]);
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [3, 4]);
-        assert!(rb.fill_buffer(&mut z).is_err());
+        rb.fill_buffer(&mut z).unwrap();
+        assert_eq!(z, [0, 0]);
     }
 
     #[test]
@@ -1319,11 +1331,11 @@ mod test {
         ];
         assert_eq!(
             Vec::<u8>::arbitrary(&mut Unstructured::new(&x)).unwrap(),
-            &[1, 2, 3, 4, 5, 6, 7, 8]
+            &[2, 4, 6, 8, 1]
         );
         assert_eq!(
             Vec::<u32>::arbitrary(&mut Unstructured::new(&x)).unwrap(),
-            &[0x4030201, 0x8070605]
+            &[84148994]
         );
         assert_eq!(
             String::arbitrary(&mut Unstructured::new(&x)).unwrap(),
