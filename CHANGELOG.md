@@ -28,6 +28,27 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.6
+
+Released 2020-08-22.
+
+### Added
+
+* Added the `Unstructured::peek_bytes` method.
+
+### Changed
+
+* Test case reduction via `cargo fuzz tmin` should be much more effective at
+  reducing the sizes of collections now. (See
+  [#53](https://github.com/rust-fuzz/arbitrary/pull/53) and the commit messages
+  for details.)
+
+* Fuzzing with mutation-based fuzzers (like libFuzzer) should be more efficient
+  now. (See [#53](https://github.com/rust-fuzz/arbitrary/pull/53) and the commit
+  messages for details)
+
+--------------------------------------------------------------------------------
+
 ## 0.4.5
 
 Released 2020-06-18.
