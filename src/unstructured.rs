@@ -68,7 +68,7 @@ use std::{mem, ops};
 /// # }
 /// ```
 pub struct Unstructured<'a> {
-    pub(crate) data: &'a [u8],
+    data: &'a [u8],
 }
 
 impl<'a> Unstructured<'a> {
@@ -404,6 +404,7 @@ impl<'a> Unstructured<'a> {
     /// a very low-level operation. You should generally prefer calling nested
     /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
     /// `String::arbitrary` over using this method directly.
+    ///
     /// # Example
     ///
     /// ```
@@ -422,6 +423,31 @@ impl<'a> Unstructured<'a> {
         let (for_buf, rest) = self.data.split_at(size);
         self.data = rest;
         Ok(for_buf)
+    }
+
+    /// Peek at `size` number of bytes of the underlying raw input.
+    ///
+    /// Does not consume the bytes, only peeks at them.
+    ///
+    /// Returns `None` if there are not `size` bytes left in the underlying raw
+    /// input.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let u = Unstructured::new(&[1, 2, 3]);
+    ///
+    /// assert_eq!(u.peek_bytes(0).unwrap(), []);
+    /// assert_eq!(u.peek_bytes(1).unwrap(), [1]);
+    /// assert_eq!(u.peek_bytes(2).unwrap(), [1, 2]);
+    /// assert_eq!(u.peek_bytes(3).unwrap(), [1, 2, 3]);
+    ///
+    /// assert!(u.peek_bytes(4).is_none());
+    /// ```
+    pub fn peek_bytes(&self, size: usize) -> Option<&'a [u8]> {
+        self.data.get(..size)
     }
 
     /// Consume all of the rest of the remaining underlying bytes.

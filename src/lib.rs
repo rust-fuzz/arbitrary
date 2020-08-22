@@ -1013,19 +1013,18 @@ where
 impl Arbitrary for String {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
-        match str::from_utf8(&u.data[..size]) {
+        match str::from_utf8(&u.peek_bytes(size).unwrap()) {
             Ok(s) => {
-                u.data = &u.data[size..];
+                u.get_bytes(size).unwrap();
                 Ok(s.into())
             }
             Err(e) => {
                 let i = e.valid_up_to();
-                let (valid, rest) = u.data.split_at(i);
+                let valid = u.get_bytes(i).unwrap();
                 let s = unsafe {
                     debug_assert!(str::from_utf8(valid).is_ok());
                     str::from_utf8_unchecked(valid)
                 };
-                u.data = rest;
                 Ok(s.into())
             }
         }
