@@ -600,7 +600,7 @@ impl Arbitrary for Duration {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         Ok(Self::new(
             <u64 as Arbitrary>::arbitrary(u)?,
-            <u32 as Arbitrary>::arbitrary(u)? % 1_000_000_000,
+            u.int_in_range(0..=999_999_999)?,
         ))
     }
 
