@@ -233,7 +233,8 @@ impl<'a> Unstructured<'a> {
             //
             // https://github.com/rust-fuzz/libfuzzer-sys/blob/0c450753/libfuzzer/utils/FuzzedDataProvider.h#L92-L97
 
-            // We only consume as many bytes as necessary to cover the entire range of the byte string
+            // We only consume as many bytes as necessary to cover the entire
+            // range of the byte string.
             let len = if self.data.len() <= std::u8::MAX as usize + 1 {
                 let bytes = 1;
                 let max_size = self.data.len() - bytes;
@@ -309,6 +310,12 @@ impl<'a> Unstructured<'a> {
             start <= end,
             "`arbitrary::Unstructured::int_in_range` requires a non-empty range"
         );
+
+        // When there is only one possible choice, don't waste any entropy from
+        // the underlying data.
+        if start == end {
+            return Ok((*start, 0));
+        }
 
         let range: T::Widest = end.as_widest() - start.as_widest();
         let mut result = T::Widest::ZERO;
