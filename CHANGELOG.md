@@ -28,6 +28,25 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.4.7
+
+Released 2020-10-14.
+
+### Added
+
+* Added an optimization to avoid unnecessarily consuming bytes from the
+  underlying data when there is only one possible choice in
+  `Unstructured::{int_in_range, choose, etc..}`.
+
+* Added license files to the derive crate.
+
+### Changed
+
+* The `Arbitrary` implementation for `std::time::Duration` should now be faster
+  and produce durations with a more-uniform distribution of nanoseconds.
+
+--------------------------------------------------------------------------------
+
 ## 0.4.6
 
 Released 2020-08-22.
