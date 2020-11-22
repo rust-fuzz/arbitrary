@@ -28,6 +28,20 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.0.0
+
+Unreleased.
+
+### Changed
+
+* The `Arbitrary` trait now has a lifetime parameter. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
+
+### Removed
+
+* The `shrink` method on the `Arbitrary` trait has been removed. If you relied on the shrinking functionality, consider vendoring [this file](https://gist.github.com/frewsxcv/390976eb39c7e2a065c0b2d2731a3eb3) into your project.
+
+--------------------------------------------------------------------------------
+
 ## 0.4.7
 
 Released 2020-10-14.

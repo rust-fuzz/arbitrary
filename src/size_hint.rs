@@ -8,9 +8,6 @@
 /// size hint.
 ///
 /// Otherwise, returns the default size hint: `(0, None)`.
-///
-/// See the [docs for `Arbitrary::shrink`][crate::Arbitrary::shrink] for example
-/// usage.
 #[inline]
 pub fn recursion_guard(
     depth: usize,

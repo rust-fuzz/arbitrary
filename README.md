@@ -77,8 +77,8 @@ pub struct Rgb {
     pub b: u8,
 }
 
-impl Arbitrary for Rgb {
-    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+impl<'a> Arbitrary<'a> for Rgb {
+    fn arbitrary(u: &'a mut Unstructured<'a>) -> Result<Self> {
         let r = u8::arbitrary(u)?;
         let g = u8::arbitrary(u)?;
         let b = u8::arbitrary(u)?;
@@ -86,33 +86,6 @@ impl Arbitrary for Rgb {
     }
 }
 ```
-
-### Shrinking
-
-To assist with test case reduction, where you want to find the smallest and most
-easily understandable test case that still demonstrates a bug you've discovered,
-the `Arbitrary` trait has a `shrink` method. The `shrink` method returns an
-iterator of "smaller" instances of `self`. The provided, default implementation
-returns an empty iterator.
-
-We can override the default for our `Rgb` struct above by shrinking each of its
-components and then gluing them back together again:
-
-```rust
-impl Arbitrary for Rgb {
-    // ...
-
-    fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-        let rs = self.r.shrink();
-        let gs = self.g.shrink();
-        let bs = self.b.shrink();
-        Box::new(rs.zip(gs).zip(bs).map(|((r, g), b)| Rgb { r, g, b }))
-    }
-}
-```
-
-Note that deriving `Arbitrary` will automatically derive a custom `shrink`
-implementation for you.
 
 ## License
 
