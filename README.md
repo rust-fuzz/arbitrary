@@ -78,7 +78,7 @@ pub struct Rgb {
 }
 
 impl<'a> Arbitrary<'a> for Rgb {
-    fn arbitrary(u: &'a mut Unstructured<'a>) -> Result<Self> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let r = u8::arbitrary(u)?;
         let g = u8::arbitrary(u)?;
         let b = u8::arbitrary(u)?;
