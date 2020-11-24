@@ -150,3 +150,21 @@ fn generics() {
     assert_eq!(lower, 4);
     assert_eq!(upper, Some(4));
 }
+
+#[derive(Arbitrary, Debug)]
+struct Lifetime<'a, 'b> {
+    alpha: &'a str,
+    beta: &'b str,
+}
+
+#[test]
+fn lifetime() {
+    let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+    let gen: Lifetime = arbitrary_from(&raw);
+    assert_eq!("", gen.alpha);
+    assert_eq!("", gen.beta);
+
+    let (lower, upper) = <Generic<u32> as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 4);
+    assert_eq!(upper, Some(4));
+}
