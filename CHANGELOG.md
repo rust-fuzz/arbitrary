@@ -38,7 +38,7 @@ Unreleased.
 
 ### Changed
 
-* The `Arbitrary` trait now has a lifetime parameter. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
+* The `Arbitrary` trait now has a lifetime parameter, allowing `Arbitrary` implementations that borrow from the raw input (e.g. the new `&str` implementaton). The `derive(Arbitrary)` macro also supports deriving `Arbitrary` on types with lifetimes now. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
 
 ### Removed
 
