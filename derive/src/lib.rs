@@ -9,7 +9,8 @@ static ARBITRARY_LIFETIME_NAME: &str = "'arbitrary";
 #[proc_macro_derive(Arbitrary)]
 pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(tokens as syn::DeriveInput);
-    let (lifetime_without_bounds, lifetime_with_bounds) = build_arbitrary_lifetime(input.generics.clone());
+    let (lifetime_without_bounds, lifetime_with_bounds) =
+        build_arbitrary_lifetime(input.generics.clone());
 
     let arbitrary_method = gen_arbitrary_method(&input, lifetime_without_bounds.clone());
     let size_hint_method = gen_size_hint_method(&input);
@@ -45,7 +46,9 @@ fn build_arbitrary_lifetime(generics: Generics) -> (LifetimeDef, LifetimeDef) {
 
     for param in generics.params.iter() {
         if let GenericParam::Lifetime(lifetime_def) = param {
-            lifetime_with_bounds.bounds.push(lifetime_def.lifetime.clone());
+            lifetime_with_bounds
+                .bounds
+                .push(lifetime_def.lifetime.clone());
         }
     }
 
