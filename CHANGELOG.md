@@ -34,6 +34,10 @@ Unreleased.
 
 ### Changed
 
+* The `Arbitrary` trait is now implemented for `&str`. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
+
+### Changed
+
 * The `Arbitrary` trait now has a lifetime parameter. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
 
 ### Removed

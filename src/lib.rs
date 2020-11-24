@@ -765,13 +765,13 @@ where
     }
 }
 
-impl<'a> Arbitrary<'a> for String {
+impl<'a> Arbitrary<'a> for &'a str {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
         match str::from_utf8(&u.peek_bytes(size).unwrap()) {
             Ok(s) => {
                 u.get_bytes(size).unwrap();
-                Ok(s.into())
+                Ok(s)
             }
             Err(e) => {
                 let i = e.valid_up_to();
@@ -780,7 +780,7 @@ impl<'a> Arbitrary<'a> for String {
                     debug_assert!(str::from_utf8(valid).is_ok());
                     str::from_utf8_unchecked(valid)
                 };
-                Ok(s.into())
+                Ok(s)
             }
         }
     }
@@ -795,6 +795,21 @@ impl<'a> Arbitrary<'a> for String {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    }
+}
+
+impl<'a> Arbitrary<'a> for String {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        <&str as Arbitrary>::arbitrary(u).map(Into::into)
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
+        <&str as Arbitrary>::arbitrary_take_rest(u).map(Into::into)
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <&str as Arbitrary>::size_hint(depth)
     }
 }
 
