@@ -9,32 +9,47 @@ static ARBITRARY_LIFETIME_NAME: &str = "'arbitrary";
 #[proc_macro_derive(Arbitrary)]
 pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(tokens as syn::DeriveInput);
-    let arbitrary_lifetime =
-        LifetimeDef::new(Lifetime::new(ARBITRARY_LIFETIME_NAME, Span::call_site()));
+    let (lifetime_without_bounds, lifetime_with_bounds) = build_arbitrary_lifetime(input.generics.clone());
 
-    let arbitrary_method = gen_arbitrary_method(&input, arbitrary_lifetime.clone());
+    let arbitrary_method = gen_arbitrary_method(&input, lifetime_without_bounds.clone());
     let size_hint_method = gen_size_hint_method(&input);
     let name = input.ident;
     // Add a bound `T: Arbitrary` to every type parameter T.
-    let generics = add_trait_bounds(input.generics, arbitrary_lifetime.clone());
+    let generics = add_trait_bounds(input.generics, lifetime_without_bounds.clone());
 
     // Build ImplGeneric with a lifetime (https://github.com/dtolnay/syn/issues/90)
     let mut generics_with_lifetime = generics.clone();
     generics_with_lifetime
         .params
-        .push(GenericParam::Lifetime(arbitrary_lifetime.clone()));
+        .push(GenericParam::Lifetime(lifetime_with_bounds));
     let (impl_generics, _, _) = generics_with_lifetime.split_for_impl();
 
     // Build TypeGenerics and WhereClause without a lifetime
     let (_, ty_generics, where_clause) = generics.split_for_impl();
 
     (quote! {
-        impl #impl_generics arbitrary::Arbitrary<#arbitrary_lifetime> for #name #ty_generics #where_clause {
+        impl #impl_generics arbitrary::Arbitrary<#lifetime_without_bounds> for #name #ty_generics #where_clause {
             #arbitrary_method
             #size_hint_method
         }
     })
     .into()
+}
+
+// Returns: (lifetime without bounds, lifetime with bounds)
+// Example: ("'arbitrary", "'arbitrary: 'a + 'b")
+fn build_arbitrary_lifetime(generics: Generics) -> (LifetimeDef, LifetimeDef) {
+    let lifetime_without_bounds =
+        LifetimeDef::new(Lifetime::new(ARBITRARY_LIFETIME_NAME, Span::call_site()));
+    let mut lifetime_with_bounds = lifetime_without_bounds.clone();
+
+    for param in generics.params.iter() {
+        if let GenericParam::Lifetime(lifetime_def) = param {
+            lifetime_with_bounds.bounds.push(lifetime_def.lifetime.clone());
+        }
+    }
+
+    (lifetime_without_bounds, lifetime_with_bounds)
 }
 
 // Add a bound `T: Arbitrary` to every type parameter T.
