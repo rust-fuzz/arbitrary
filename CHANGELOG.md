@@ -42,7 +42,9 @@ Unreleased.
 
 ### Removed
 
-* The `shrink` method on the `Arbitrary` trait has been removed. If you relied on the shrinking functionality, consider vendoring [this file](https://gist.github.com/frewsxcv/390976eb39c7e2a065c0b2d2731a3eb3) into your project.
+* The `shrink` method on the `Arbitrary` trait has been removed.
+
+  We have found that, in practice, using [internal reduction](https://drmaciver.github.io/papers/reduction-via-generation-preview.pdf) via approaches like `cargo fuzz tmin`, where the raw input bytes are reduced rather than the `T: Arbitrary` type constructed from those raw bytes, has the best efficiency-to-maintenance ratio. To the best of our knowledge, no one is relying on or using the `Arbitrary::shrink` method. If you *are* using and relying on the `Arbitrary::shrink` method, please reach out by [dropping a comment here](https://github.com/rust-fuzz/arbitrary/issues/62) and explaining how you're using it and what your use case is. We'll figure out what the best solution is, including potentially adding shrinking functionality back to the `arbitrary` crate.
 
 --------------------------------------------------------------------------------
 
