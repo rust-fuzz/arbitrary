@@ -159,12 +159,13 @@ struct Lifetime<'a, 'b> {
 
 #[test]
 fn lifetime() {
-    let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-    let gen: Lifetime = arbitrary_from(&raw);
-    assert_eq!("", gen.alpha);
-    assert_eq!("", gen.beta);
+    // Last byte is used for length
+    let raw: Vec<u8> = vec![97, 98, 99, 100, 101, 102, 103, 3];
+    let lifetime: Lifetime = arbitrary_from(&raw);
+    assert_eq!("abc", lifetime.alpha);
+    assert_eq!("def", lifetime.beta);
 
-    let (lower, upper) = <Generic<u32> as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 4);
-    assert_eq!(upper, Some(4));
+    let (lower, upper) = <Lifetime as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 16);
+    assert_eq!(upper, None);
 }
