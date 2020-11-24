@@ -152,20 +152,37 @@ fn generics() {
 }
 
 #[derive(Arbitrary, Debug)]
-struct Lifetime<'a, 'b> {
+struct OneLifetime<'a> {
+    alpha: &'a str,
+}
+
+#[test]
+fn one_lifetime() {
+    // Last byte is used for length
+    let raw: Vec<u8> = vec![97, 98, 99, 100, 3];
+    let lifetime: OneLifetime = arbitrary_from(&raw);
+    assert_eq!("abc", lifetime.alpha);
+
+    let (lower, upper) = <OneLifetime as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 8);
+    assert_eq!(upper, None);
+}
+
+#[derive(Arbitrary, Debug)]
+struct TwoLifetimes<'a, 'b> {
     alpha: &'a str,
     beta: &'b str,
 }
 
 #[test]
-fn lifetime() {
+fn two_lifetimes() {
     // Last byte is used for length
     let raw: Vec<u8> = vec![97, 98, 99, 100, 101, 102, 103, 3];
-    let lifetime: Lifetime = arbitrary_from(&raw);
+    let lifetime: TwoLifetimes = arbitrary_from(&raw);
     assert_eq!("abc", lifetime.alpha);
     assert_eq!("def", lifetime.beta);
 
-    let (lower, upper) = <Lifetime as Arbitrary>::size_hint(0);
+    let (lower, upper) = <TwoLifetimes as Arbitrary>::size_hint(0);
     assert_eq!(lower, 16);
     assert_eq!(upper, None);
 }
