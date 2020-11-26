@@ -1,6 +1,6 @@
 [package]
 name = "arbitrary"
-version = "0.4.7" # Make sure this matches the derive crate version
+version = "1.0.0-rc1" # Make sure this matches the derive crate version
 authors = ["The Rust-Fuzz Project Developers", "Nick Fitzgerald <fitzgen@gmail.com>", "Manish Goregaokar <manishsmail@gmail.com>", "Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
 categories = ["development-tools::testing"]
 edition = "2018"
@@ -12,7 +12,7 @@ repository = "https://github.com/nagisa/rust_arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
 
 [dependencies]
-derive_arbitrary = { version = "=0.4.7", path = "./derive", optional = true }
+derive_arbitrary = { version = "1.0.0-rc1", path = "./derive", optional = true }
 
 [dev-dependencies]
 
