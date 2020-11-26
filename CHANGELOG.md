@@ -28,6 +28,26 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.0.0-rc1
+
+Unreleased.
+
+### Changed
+
+* The `Arbitrary` trait is now implemented for `&str`. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
+
+### Changed
+
+* The `Arbitrary` trait now has a lifetime parameter, allowing `Arbitrary` implementations that borrow from the raw input (e.g. the new `&str` implementaton). The `derive(Arbitrary)` macro also supports deriving `Arbitrary` on types with lifetimes now. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
+
+### Removed
+
+* The `shrink` method on the `Arbitrary` trait has been removed.
+
+  We have found that, in practice, using [internal reduction](https://drmaciver.github.io/papers/reduction-via-generation-preview.pdf) via approaches like `cargo fuzz tmin`, where the raw input bytes are reduced rather than the `T: Arbitrary` type constructed from those raw bytes, has the best efficiency-to-maintenance ratio. To the best of our knowledge, no one is relying on or using the `Arbitrary::shrink` method. If you *are* using and relying on the `Arbitrary::shrink` method, please reach out by [dropping a comment here](https://github.com/rust-fuzz/arbitrary/issues/62) and explaining how you're using it and what your use case is. We'll figure out what the best solution is, including potentially adding shrinking functionality back to the `arbitrary` crate.
+
+--------------------------------------------------------------------------------
+
 ## 0.4.7
 
 Released 2020-10-14.
