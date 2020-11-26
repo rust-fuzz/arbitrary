@@ -30,7 +30,7 @@ Released YYYY-MM-DD.
 
 ## 1.0.0-rc1
 
-Unreleased.
+Released 2020-11-25.
 
 ### Changed
 
