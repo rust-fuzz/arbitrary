@@ -419,10 +419,10 @@ impl<'a> Unstructured<'a> {
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
-    /// assert!(u.get_bytes(2).unwrap() == &[1, 2]);
-    /// assert!(u.get_bytes(2).unwrap() == &[3, 4]);
+    /// assert!(u.bytes(2).unwrap() == &[1, 2]);
+    /// assert!(u.bytes(2).unwrap() == &[3, 4]);
     /// ```
-    pub fn get_bytes(&mut self, size: usize) -> Result<&'a [u8]> {
+    pub fn bytes(&mut self, size: usize) -> Result<&'a [u8]> {
         if self.data.len() < size {
             return Err(Error::NotEnoughData);
         }

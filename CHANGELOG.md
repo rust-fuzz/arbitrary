@@ -28,11 +28,25 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## Unreleased
+
+### Added
+
+*
+
+### Changed
+
+* Rename `Unstructured#get_bytes` to `Unstructured#bytes`. [#70](https://github.com/rust-fuzz/arbitrary/pull/70)
+
+### Removed
+
+*
+
 ## 1.0.0-rc1
 
 Released 2020-11-25.
 
-### Changed
+### Added
 
 * The `Arbitrary` trait is now implemented for `&str`. [#63](https://github.com/rust-fuzz/arbitrary/pull/63)
 
