@@ -626,6 +626,22 @@ arbitrary_array! { 32, (T, a) (T, b) (T, c) (T, d) (T, e) (T, f) (T, g) (T, h)
 (T, z) (T, aa) (T, ab) (T, ac) (T, ad) (T, ae) (T, af)
 (T, ag) }
 
+impl<'a> Arbitrary<'a> for &'a [u8] {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        let len = u.arbitrary_len::<u8>()?;
+        u.bytes(len)
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
+        Ok(u.take_rest())
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <usize as Arbitrary>::size_hint(depth)
+    }
+}
+
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -1017,6 +1033,24 @@ mod test {
         let mut buf = Unstructured::new(&x);
         let expected = 1 | (2 << 8) | (3 << 16) | (4 << 24);
         let actual = i32::arbitrary(&mut buf).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn arbitrary_for_bytes() {
+        let x = [1, 2, 3, 4, 4];
+        let mut buf = Unstructured::new(&x);
+        let expected = &[1, 2, 3, 4];
+        let actual = <&[u8] as Arbitrary>::arbitrary(&mut buf).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn arbitrary_take_rest_for_bytes() {
+        let x = [1, 2, 3, 4];
+        let buf = Unstructured::new(&x);
+        let expected = &[1, 2, 3, 4];
+        let actual = <&[u8] as Arbitrary>::arbitrary_take_rest(buf).unwrap();
         assert_eq!(expected, actual);
     }
 
