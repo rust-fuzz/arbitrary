@@ -770,12 +770,12 @@ impl<'a> Arbitrary<'a> for &'a str {
         let size = u.arbitrary_len::<u8>()?;
         match str::from_utf8(&u.peek_bytes(size).unwrap()) {
             Ok(s) => {
-                u.get_bytes(size).unwrap();
+                u.bytes(size).unwrap();
                 Ok(s)
             }
             Err(e) => {
                 let i = e.valid_up_to();
-                let valid = u.get_bytes(i).unwrap();
+                let valid = u.bytes(i).unwrap();
                 let s = unsafe {
                     debug_assert!(str::from_utf8(valid).is_ok());
                     str::from_utf8_unchecked(valid)
