@@ -4,6 +4,8 @@ use std::{error, fmt};
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum Error {
+    /// No choices were provided to the Unstructured::choose call
+    EmptyChoose,
     /// There was not enough underlying data to fulfill some request for raw
     /// bytes.
     NotEnoughData,
@@ -14,6 +16,10 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::EmptyChoose => write!(
+                f,
+                "`arbitrary::Unstructured::choose` must be given a non-empty set of choices"
+            ),
             Error::NotEnoughData => write!(
                 f,
                 "There is not enough underlying raw data to construct an `Arbitrary` instance"

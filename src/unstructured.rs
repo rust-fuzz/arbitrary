@@ -345,29 +345,39 @@ impl<'a> Unstructured<'a> {
     /// This should only be used inside of `Arbitrary` implementations.
     ///
     /// Returns an error if there is not enough underlying data to make a
-    /// choice.
+    /// choice or if no choices are provided.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if `choices` is empty.
-    ///
-    /// # Example
+    /// Selecting from an array of choices:
     ///
     /// ```
     /// use arbitrary::Unstructured;
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
-    ///
     /// let choices = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-    /// if let Ok(ch) = u.choose(&choices) {
-    ///     println!("chose {}", ch);
-    /// }
+    ///
+    /// let choice = u.choose(&choices).unwrap();
+    ///
+    /// println!("chose {}", choice);
+    /// ```
+    ///
+    /// An error is returned if no choices are provided:
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    /// let choices: [char; 0] = [];
+    ///
+    /// let result = u.choose(&choices);
+    ///
+    /// assert!(result.is_err());
     /// ```
     pub fn choose<'b, T>(&mut self, choices: &'b [T]) -> Result<&'b T> {
-        assert!(
-            !choices.is_empty(),
-            "`arbitrary::Unstructured::choose` must be given a non-empty set of choices"
-        );
+        if choices.is_empty() {
+            return Err(Error::EmptyChoose);
+        }
         let idx = self.int_in_range(0..=choices.len() - 1)?;
         Ok(&choices[idx])
     }
