@@ -41,10 +41,6 @@ Released 2021-02-09.
 * Rename `Unstructured#get_bytes` to `Unstructured#bytes`. [#70](https://github.com/rust-fuzz/arbitrary/pull/70)
 * Passing an empty slice of choices to `Unstructured#choose` returns an error. Previously it would panic. [71](https://github.com/rust-fuzz/arbitrary/pull/71)
 
-### Removed
-
-*
-
 --------------------------------------------------------------------------------
 
 ## 1.0.0-rc1
