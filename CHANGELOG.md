@@ -30,6 +30,8 @@ Released YYYY-MM-DD.
 
 ## 1.0.0-rc2
 
+Released 2021-02-09.
+
 ### Added
 
 * The `Arbitrary` trait is now implemented for `&[u8]`. [#67](https://github.com/rust-fuzz/arbitrary/pull/67)
