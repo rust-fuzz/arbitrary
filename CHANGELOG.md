@@ -30,7 +30,7 @@ Released YYYY-MM-DD.
 
 ## 1.0.0
 
-Released 2020-02-23.
+Released 2020-02-24.
 
 See 1.0.0-rc1 and 1.0.0-rc2 for changes since 0.4.7, which was the last main
 line release.
