@@ -1,18 +1,25 @@
 [package]
 name = "arbitrary"
-version = "0.4.7" # Make sure this matches the derive crate version
-authors = ["The Rust-Fuzz Project Developers", "Nick Fitzgerald <fitzgen@gmail.com>", "Manish Goregaokar <manishsmail@gmail.com>", "Simonas Kazlauskas <arbitrary@kazlauskas.me>", "Brian L. Troutwine <brian@troutwine.us>"]
+version = "1.0.0" # Make sure this matches the derive crate version
+authors = [
+    "The Rust-Fuzz Project Developers",
+    "Nick Fitzgerald <fitzgen@gmail.com>",
+    "Manish Goregaokar <manishsmail@gmail.com>",
+    "Simonas Kazlauskas <arbitrary@kazlauskas.me>",
+    "Brian L. Troutwine <brian@troutwine.us>",
+    "Corey Farwell <coreyf@rwell.org>",
+]
 categories = ["development-tools::testing"]
 edition = "2018"
 keywords = ["arbitrary", "testing"]
 readme = "README.md"
 description = "The trait for generating structured data from unstructured data"
 license = "MIT/Apache-2.0"
-repository = "https://github.com/nagisa/rust_arbitrary/"
+repository = "https://github.com/rust-fuzz/arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
 
 [dependencies]
-derive_arbitrary = { version = "=0.4.7", path = "./derive", optional = true }
+derive_arbitrary = { version = "1.0.0", path = "./derive", optional = true }
 
 [dev-dependencies]
 

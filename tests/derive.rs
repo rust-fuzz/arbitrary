@@ -2,7 +2,7 @@
 
 use arbitrary::*;
 
-fn arbitrary_from<T: Arbitrary>(input: &[u8]) -> T {
+fn arbitrary_from<'a, T: Arbitrary<'a>>(input: &'a [u8]) -> T {
     let mut buf = Unstructured::new(input);
     T::arbitrary(&mut buf).expect("can create arbitrary instance OK")
 }
@@ -21,15 +21,6 @@ fn struct_with_named_fields() {
     assert_eq!(rgb.g, 5);
     assert_eq!(rgb.b, 6);
 
-    assert_eq!(
-        rgb.shrink().collect::<Vec<_>>(),
-        vec![
-            Rgb { r: 0, g: 0, b: 0 },
-            Rgb { r: 2, g: 2, b: 3 },
-            Rgb { r: 1, g: 1, b: 1 }
-        ]
-    );
-
     assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint(0));
 }
 
@@ -45,11 +36,6 @@ fn tuple_struct() {
     let s: MyTupleStruct = arbitrary_from(&[42, 43]);
     assert_eq!(s.0, 42);
     assert_eq!(s.1, true);
-
-    for ((a, b), s) in 42.shrink().zip(true.shrink()).zip(s.shrink()) {
-        assert_eq!(a, s.0);
-        assert_eq!(b, s.1);
-    }
 
     assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint(0));
 }
@@ -106,36 +92,16 @@ fn derive_enum() {
         match e {
             MyEnum::Unit => {
                 saw_unit = true;
-                assert_eq!(e.shrink().count(), 0);
             }
             MyEnum::Tuple(a, b) => {
                 saw_tuple = true;
                 assert_eq!(a, arbitrary_from(&raw[4..5]));
                 assert_eq!(b, arbitrary_from(&raw[5..]));
-
-                for ((a, b), e) in a.shrink().zip(b.shrink()).zip(e.shrink()) {
-                    match e {
-                        MyEnum::Tuple(c, d) => {
-                            assert_eq!(a, c);
-                            assert_eq!(b, d);
-                        }
-                        _ => panic!("should never shrink to a different variant"),
-                    }
-                }
             }
             MyEnum::Struct { a, b } => {
                 saw_struct = true;
                 assert_eq!(a, arbitrary_from(&raw[4..8]));
                 assert_eq!(b, arbitrary_from(&raw[8..]));
-                for ((a, b), e) in a.shrink().zip(b.shrink()).zip(e.shrink()) {
-                    match e {
-                        MyEnum::Struct { a: c, b: d } => {
-                            assert_eq!(a, c);
-                            assert_eq!(b, d);
-                        }
-                        _ => panic!("should never shrink to a different variant"),
-                    }
-                }
             }
         }
     }
@@ -183,4 +149,40 @@ fn generics() {
     let (lower, upper) = <Generic<u32> as Arbitrary>::size_hint(0);
     assert_eq!(lower, 4);
     assert_eq!(upper, Some(4));
+}
+
+#[derive(Arbitrary, Debug)]
+struct OneLifetime<'a> {
+    alpha: &'a str,
+}
+
+#[test]
+fn one_lifetime() {
+    // Last byte is used for length
+    let raw: Vec<u8> = vec![97, 98, 99, 100, 3];
+    let lifetime: OneLifetime = arbitrary_from(&raw);
+    assert_eq!("abc", lifetime.alpha);
+
+    let (lower, upper) = <OneLifetime as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 8);
+    assert_eq!(upper, None);
+}
+
+#[derive(Arbitrary, Debug)]
+struct TwoLifetimes<'a, 'b> {
+    alpha: &'a str,
+    beta: &'b str,
+}
+
+#[test]
+fn two_lifetimes() {
+    // Last byte is used for length
+    let raw: Vec<u8> = vec![97, 98, 99, 100, 101, 102, 103, 3];
+    let lifetime: TwoLifetimes = arbitrary_from(&raw);
+    assert_eq!("abc", lifetime.alpha);
+    assert_eq!("def", lifetime.beta);
+
+    let (lower, upper) = <TwoLifetimes as Arbitrary>::size_hint(0);
+    assert_eq!(lower, 16);
+    assert_eq!(upper, None);
 }

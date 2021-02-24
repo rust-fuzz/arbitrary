@@ -165,9 +165,9 @@ impl<'a> Unstructured<'a> {
     /// ```
     pub fn arbitrary<A>(&mut self) -> Result<A>
     where
-        A: Arbitrary,
+        A: Arbitrary<'a>,
     {
-        <A as Arbitrary>::arbitrary(self)
+        <A as Arbitrary<'a>>::arbitrary(self)
     }
 
     /// Get the number of elements to insert when building up a collection of
@@ -190,11 +190,11 @@ impl<'a> Unstructured<'a> {
     /// #     pub fn insert(&mut self, element: T) {}
     /// # }
     ///
-    /// impl<T> Arbitrary for MyCollection<T>
+    /// impl<'a, T> Arbitrary<'a> for MyCollection<T>
     /// where
-    ///     T: Arbitrary,
+    ///     T: Arbitrary<'a>,
     /// {
-    ///     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+    ///     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
     ///         // Get the number of `T`s we should insert into our collection.
     ///         let len = u.arbitrary_len::<T>()?;
     ///
@@ -211,7 +211,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     pub fn arbitrary_len<ElementType>(&mut self) -> Result<usize>
     where
-        ElementType: Arbitrary,
+        ElementType: Arbitrary<'a>,
     {
         let byte_size = self.arbitrary_byte_size()?;
         let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
@@ -345,29 +345,39 @@ impl<'a> Unstructured<'a> {
     /// This should only be used inside of `Arbitrary` implementations.
     ///
     /// Returns an error if there is not enough underlying data to make a
-    /// choice.
+    /// choice or if no choices are provided.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if `choices` is empty.
-    ///
-    /// # Example
+    /// Selecting from an array of choices:
     ///
     /// ```
     /// use arbitrary::Unstructured;
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
-    ///
     /// let choices = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-    /// if let Ok(ch) = u.choose(&choices) {
-    ///     println!("chose {}", ch);
-    /// }
+    ///
+    /// let choice = u.choose(&choices).unwrap();
+    ///
+    /// println!("chose {}", choice);
+    /// ```
+    ///
+    /// An error is returned if no choices are provided:
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    /// let choices: [char; 0] = [];
+    ///
+    /// let result = u.choose(&choices);
+    ///
+    /// assert!(result.is_err());
     /// ```
     pub fn choose<'b, T>(&mut self, choices: &'b [T]) -> Result<&'b T> {
-        assert!(
-            !choices.is_empty(),
-            "`arbitrary::Unstructured::choose` must be given a non-empty set of choices"
-        );
+        if choices.is_empty() {
+            return Err(Error::EmptyChoose);
+        }
         let idx = self.int_in_range(0..=choices.len() - 1)?;
         Ok(&choices[idx])
     }
@@ -419,10 +429,10 @@ impl<'a> Unstructured<'a> {
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
-    /// assert!(u.get_bytes(2).unwrap() == &[1, 2]);
-    /// assert!(u.get_bytes(2).unwrap() == &[3, 4]);
+    /// assert!(u.bytes(2).unwrap() == &[1, 2]);
+    /// assert!(u.bytes(2).unwrap() == &[3, 4]);
     /// ```
-    pub fn get_bytes(&mut self, size: usize) -> Result<&'a [u8]> {
+    pub fn bytes(&mut self, size: usize) -> Result<&'a [u8]> {
         if self.data.len() < size {
             return Err(Error::NotEnoughData);
         }
@@ -480,7 +490,7 @@ impl<'a> Unstructured<'a> {
     ///
     /// This is useful for implementing [`Arbitrary::arbitrary`] on collections
     /// since the implementation is simply `u.arbitrary_iter()?.collect()`
-    pub fn arbitrary_iter<'b, ElementType: Arbitrary>(
+    pub fn arbitrary_iter<'b, ElementType: Arbitrary<'a>>(
         &'b mut self,
     ) -> Result<ArbitraryIter<'a, 'b, ElementType>> {
         Ok(ArbitraryIter {
@@ -494,7 +504,7 @@ impl<'a> Unstructured<'a> {
     ///
     /// This is useful for implementing [`Arbitrary::arbitrary_take_rest`] on collections
     /// since the implementation is simply `u.arbitrary_take_rest_iter()?.collect()`
-    pub fn arbitrary_take_rest_iter<ElementType: Arbitrary>(
+    pub fn arbitrary_take_rest_iter<ElementType: Arbitrary<'a>>(
         self,
     ) -> Result<ArbitraryTakeRestIter<'a, ElementType>> {
         let (lower, upper) = ElementType::size_hint(0);
@@ -516,7 +526,7 @@ pub struct ArbitraryIter<'a, 'b, ElementType> {
     _marker: PhantomData<ElementType>,
 }
 
-impl<'a, 'b, ElementType: Arbitrary> Iterator for ArbitraryIter<'a, 'b, ElementType> {
+impl<'a, 'b, ElementType: Arbitrary<'a>> Iterator for ArbitraryIter<'a, 'b, ElementType> {
     type Item = Result<ElementType>;
     fn next(&mut self) -> Option<Result<ElementType>> {
         let keep_going = self.u.arbitrary().unwrap_or(false);
@@ -535,7 +545,7 @@ pub struct ArbitraryTakeRestIter<'a, ElementType> {
     _marker: PhantomData<ElementType>,
 }
 
-impl<'a, ElementType: Arbitrary> Iterator for ArbitraryTakeRestIter<'a, ElementType> {
+impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryTakeRestIter<'a, ElementType> {
     type Item = Result<ElementType>;
     fn next(&mut self) -> Option<Result<ElementType>> {
         if let Some(mut u) = self.u.take() {
