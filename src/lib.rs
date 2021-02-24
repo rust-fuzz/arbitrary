@@ -64,7 +64,7 @@ use std::sync::{Arc, Mutex};
 ///
 /// ```toml
 /// [dependencies]
-/// arbitrary = { version = "0.4", features = ["derive"] }
+/// arbitrary = { version = "1", features = ["derive"] }
 /// ```
 ///
 /// Then, you add the `#[derive(Arbitrary)]` annotation to your `struct` or
