@@ -10,7 +10,7 @@
 
 ## About
 
-The `Arbitrary` crate lets you construct arbitrary instance of a type.
+The `Arbitrary` crate lets you construct arbitrary instances of a type.
 
 This crate is primarily intended to be combined with a fuzzer like [libFuzzer
 and `cargo-fuzz`](https://github.com/rust-fuzz/cargo-fuzz) or
