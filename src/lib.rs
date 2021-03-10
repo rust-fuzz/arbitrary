@@ -43,15 +43,15 @@ use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZ
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
+use core::ops::Bound;
+use core::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
 use std::borrow::{Cow, ToOwned};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
 use std::hash::BuildHasher;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
-use std::ops::Bound;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
 use std::sync::{Arc, Mutex};
 
 /// Generate arbitrary structured values from raw, unstructured data.
@@ -381,7 +381,7 @@ impl_arbitrary_for_floats! {
 
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        use std::char;
+        use core::char;
         // The highest unicode code point is 0x11_FFFF
         const CHAR_END: u32 = 0x11_0000;
         // The size of the surrogate blocks
@@ -560,7 +560,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Result<A, B> {
+impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for core::result::Result<A, B> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
             Ok(<A as Arbitrary>::arbitrary(u)?)
@@ -1116,9 +1116,9 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for iter::Empty<A> {
     }
 }
 
-impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
+impl<'a, A: ?Sized> Arbitrary<'a> for core::marker::PhantomData<A> {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(::std::marker::PhantomData)
+        Ok(core::marker::PhantomData)
     }
 
     #[inline]
@@ -1127,9 +1127,9 @@ impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     }
 }
 
-impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
+impl<'a> Arbitrary<'a> for core::marker::PhantomPinned {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(::std::marker::PhantomPinned)
+        Ok(core::marker::PhantomPinned)
     }
 
     #[inline]
@@ -1138,9 +1138,9 @@ impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
+impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for core::num::Wrapping<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Arbitrary::arbitrary(u).map(::std::num::Wrapping)
+        Arbitrary::arbitrary(u).map(core::num::Wrapping)
     }
 
     #[inline]

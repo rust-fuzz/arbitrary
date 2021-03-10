@@ -9,9 +9,9 @@
 //! Wrappers around raw, unstructured bytes.
 
 use crate::{Arbitrary, Error, Result};
-use std::marker::PhantomData;
-use std::ops::ControlFlow;
-use std::{mem, ops};
+use core::marker::PhantomData;
+use core::ops::ControlFlow;
+use core::{mem, ops};
 
 /// A source of unstructured data.
 ///
@@ -186,9 +186,9 @@ impl<'a> Unstructured<'a> {
     ///
     /// ```
     /// use arbitrary::{Arbitrary, Result, Unstructured};
-    /// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
+    /// # pub struct MyCollection<T> { _t: core::marker::PhantomData<T> }
     /// # impl<T> MyCollection<T> {
-    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
+    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: core::marker::PhantomData } }
     /// #     pub fn insert(&mut self, element: T) {}
     /// # }
     ///
@@ -218,7 +218,7 @@ impl<'a> Unstructured<'a> {
         let byte_size = self.arbitrary_byte_size()?;
         let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
         let elem_size = upper.unwrap_or(lower * 2);
-        let elem_size = std::cmp::max(1, elem_size);
+        let elem_size = core::cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
     }
 
@@ -238,19 +238,19 @@ impl<'a> Unstructured<'a> {
             // We only consume as many bytes as necessary to cover the entire
             // range of the byte string.
             // Note: We cast to u64 so we don't overflow when checking std::u32::MAX + 4 on 32-bit archs
-            let len = if self.data.len() as u64 <= std::u8::MAX as u64 + 1 {
+            let len = if self.data.len() as u64 <= core::u8::MAX as u64 + 1 {
                 let bytes = 1;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
                 Self::int_in_range_impl(0..=max_size as u8, for_size.iter().copied())?.0 as usize
-            } else if self.data.len() as u64 <= std::u16::MAX as u64 + 2 {
+            } else if self.data.len() as u64 <= core::u16::MAX as u64 + 2 {
                 let bytes = 2;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
                 Self::int_in_range_impl(0..=max_size as u16, for_size.iter().copied())?.0 as usize
-            } else if self.data.len() as u64 <= std::u32::MAX as u64 + 4 {
+            } else if self.data.len() as u64 <= core::u32::MAX as u64 + 4 {
                 let bytes = 4;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
@@ -520,7 +520,7 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(buf, [0, 0]);
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        let n = std::cmp::min(buffer.len(), self.data.len());
+        let n = core::cmp::min(buffer.len(), self.data.len());
         buffer[..n].copy_from_slice(&self.data[..n]);
         for byte in buffer[n..].iter_mut() {
             *byte = 0;
@@ -764,7 +764,7 @@ impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryTakeRestIter<'a, Elem
 /// Don't implement this trait yourself.
 pub trait Int:
     Copy
-    + std::fmt::Debug
+    + core::fmt::Debug
     + PartialOrd
     + Ord
     + ops::Sub<Self, Output = Self>
