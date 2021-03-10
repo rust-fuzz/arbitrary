@@ -14,6 +14,7 @@
 //! [`Arbitrary`](./trait.Arbitrary.html) trait's documentation for details on
 //! automatically deriving, implementing, and/or using the trait.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
@@ -40,12 +41,25 @@ use core::mem;
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
+#[cfg(feature = "std")]
 use std::borrow::{Cow, ToOwned};
+#[cfg(feature = "std")]
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
+#[cfg(feature = "std")]
 use std::ffi::{CString, OsString};
+#[cfg(feature = "std")]
 use std::path::PathBuf;
+#[cfg(feature = "std")]
 use std::rc::Rc;
+#[cfg(feature = "std")]
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
+#[cfg(feature = "std")]
 use std::sync::{Arc, Mutex};
 
 /// Generate arbitrary structured values from raw, unstructured data.
@@ -75,11 +89,13 @@ use std::sync::{Arc, Mutex};
 /// use arbitrary::Arbitrary;
 /// use std::collections::HashSet;
 ///
+/// # #[cfg(feature = "std")]
 /// #[derive(Arbitrary)]
 /// pub struct AddressBook {
 ///     friends: HashSet<Friend>,
 /// }
 ///
+/// # #[cfg(feature = "std")]
 /// #[derive(Arbitrary, Hash, Eq, PartialEq)]
 /// pub enum Friend {
 ///     Buddy { name: String },
@@ -344,7 +360,7 @@ impl_arbitrary_for_floats! {
 
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        use std::char;
+        use core::char;
         const CHAR_END: u32 = 0x0011_000;
         // The size of the surrogate blocks
         const SURROGATES_START: u32 = 0xD800;
@@ -365,6 +381,7 @@ impl<'a> Arbitrary<'a> for char {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for AtomicBool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -376,6 +393,7 @@ impl<'a> Arbitrary<'a> for AtomicBool {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for AtomicIsize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -387,6 +405,7 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for AtomicUsize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -521,7 +540,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Result<A, B> {
+impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for core::result::Result<A, B> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
             Ok(<A as Arbitrary>::arbitrary(u)?)
@@ -657,6 +676,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -672,6 +692,7 @@ impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K,
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -687,6 +708,7 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -702,6 +724,7 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>> Arbitrary<'a>
     for HashMap<K, V>
 {
@@ -719,6 +742,7 @@ impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>> Arbitrary<
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash> Arbitrary<'a> for HashSet<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -734,6 +758,7 @@ impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash> Arbitrary<'a> for HashSet<A>
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -749,6 +774,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -764,6 +790,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A> Arbitrary<'a> for Cow<'a, A>
 where
     A: ToOwned + ?Sized,
@@ -814,6 +841,7 @@ impl<'a> Arbitrary<'a> for &'a str {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for String {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <&str as Arbitrary>::arbitrary(u).map(Into::into)
@@ -829,6 +857,7 @@ impl<'a> Arbitrary<'a> for String {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for CString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <Vec<u8> as Arbitrary>::arbitrary(u).map(|mut x| {
@@ -843,6 +872,7 @@ impl<'a> Arbitrary<'a> for CString {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for OsString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(From::from)
@@ -854,6 +884,7 @@ impl<'a> Arbitrary<'a> for OsString {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for PathBuf {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
@@ -865,6 +896,7 @@ impl<'a> Arbitrary<'a> for PathBuf {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -876,6 +908,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
@@ -887,6 +920,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for Box<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
@@ -911,6 +945,7 @@ impl<'a> Arbitrary<'a> for Box<str> {
 //     }
 // }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -922,6 +957,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -966,6 +1002,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Mutex<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -988,9 +1025,9 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for iter::Empty<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::marker::PhantomData<A> {
+impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for core::marker::PhantomData<A> {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(::std::marker::PhantomData)
+        Ok(core::marker::PhantomData)
     }
 
     #[inline]
@@ -999,9 +1036,9 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
+impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for core::num::Wrapping<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Arbitrary::arbitrary(u).map(::std::num::Wrapping)
+        Arbitrary::arbitrary(u).map(core::num::Wrapping)
     }
 
     #[inline]
@@ -1067,6 +1104,7 @@ mod test {
             Vec::<u32>::arbitrary(&mut Unstructured::new(&x)).unwrap(),
             &[84148994]
         );
+        #[cfg(feature = "std")]
         assert_eq!(
             String::arbitrary(&mut Unstructured::new(&x)).unwrap(),
             "\x01\x02\x03\x04\x05\x06\x07\x08"
@@ -1084,6 +1122,7 @@ mod test {
             Vec::<u32>::arbitrary_take_rest(Unstructured::new(&x)).unwrap(),
             &[0x4030201]
         );
+        #[cfg(feature = "std")]
         assert_eq!(
             String::arbitrary_take_rest(Unstructured::new(&x)).unwrap(),
             "\x01\x02\x03\x04"

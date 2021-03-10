@@ -1,4 +1,7 @@
-use std::{error, fmt};
+#[cfg(feature = "std")]
+use std::error;
+
+use core::fmt;
 
 /// An enumeration of buffer creation errors
 #[derive(Debug, Clone, Copy)]
@@ -32,9 +35,10 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl error::Error for Error {}
 
 /// A `Result` with the error type fixed as `arbitrary::Error`.
 ///
 /// Either an `Ok(T)` or `Err(arbitrary::Error)`.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
