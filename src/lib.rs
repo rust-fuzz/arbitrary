@@ -204,7 +204,7 @@ pub trait Arbitrary<'a>: Sized {
     /// not a recursive type, or your implementation is not transitively calling
     /// any other `size_hint` methods, you can ignore the `depth` parameter.
     /// Note that if you are implementing `Arbitrary` for a generic type, you
-    /// cannot guarantee the lack of type recrusion!
+    /// cannot guarantee the lack of type recursion!
     ///
     /// Otherwise, you need to use
     /// [`arbitrary::size_hint::recursion_guard(depth)`][crate::size_hint::recursion_guard]
