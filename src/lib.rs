@@ -37,8 +37,8 @@ pub mod size_hint;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::iter;
 use core::mem;
-use core::num::{NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI128, NonZeroIsize};
-use core::num::{NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU128, NonZeroUsize};
+use core::num::{NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize};
+use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
@@ -1027,21 +1027,21 @@ macro_rules! implement_nonzero_int {
                 <$int as Arbitrary<'a>>::size_hint(depth)
             }
         }
-    }
+    };
 }
 
-implement_nonzero_int!(NonZeroI8, i8);
-implement_nonzero_int!(NonZeroI16, i16);
-implement_nonzero_int!(NonZeroI32, i32);
-implement_nonzero_int!(NonZeroI64, i64);
-implement_nonzero_int!(NonZeroI128, i128);
-implement_nonzero_int!(NonZeroIsize, isize);
-implement_nonzero_int!(NonZeroU8, u8);
-implement_nonzero_int!(NonZeroU16, u16);
-implement_nonzero_int!(NonZeroU32, u32);
-implement_nonzero_int!(NonZeroU64, u64);
-implement_nonzero_int!(NonZeroU128, u128);
-implement_nonzero_int!(NonZeroUsize, usize);
+implement_nonzero_int! { NonZeroI8, i8 }
+implement_nonzero_int! { NonZeroI16, i16 }
+implement_nonzero_int! { NonZeroI32, i32 }
+implement_nonzero_int! { NonZeroI64, i64 }
+implement_nonzero_int! { NonZeroI128, i128 }
+implement_nonzero_int! { NonZeroIsize, isize }
+implement_nonzero_int! { NonZeroU8, u8 }
+implement_nonzero_int! { NonZeroU16, u16 }
+implement_nonzero_int! { NonZeroU32, u32 }
+implement_nonzero_int! { NonZeroU64, u64 }
+implement_nonzero_int! { NonZeroU128, u128 }
+implement_nonzero_int! { NonZeroUsize, usize }
 
 #[cfg(test)]
 mod test {
