@@ -571,60 +571,90 @@ macro_rules! arbitrary_tuple {
 }
 arbitrary_tuple!(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z);
 
-macro_rules! arbitrary_array {
-    {$n:expr, ($t:ident, $a:ident) $(($ts:ident, $as:ident))*} => {
-        arbitrary_array!{($n - 1), $(($ts, $as))*}
-
-        impl<'a, T: Arbitrary<'a>> Arbitrary<'a> for [T; $n] {
-            fn arbitrary(u: &mut Unstructured<'a>) -> Result<[T; $n]> {
-                Ok([
-                    Arbitrary::arbitrary(u)?,
-                    $(<$ts as Arbitrary>::arbitrary(u)?),*
-                ])
-            }
-
-            #[allow(unused_mut)]
-            fn arbitrary_take_rest(mut u: Unstructured<'a>) -> Result<[T; $n]> {
-                $(let $as = $ts::arbitrary(&mut u)?;)*
-                let last = Arbitrary::arbitrary_take_rest(u)?;
-
-                Ok([
-                    $($as,)* last
-                ])
-            }
-
-            #[inline]
-            fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                crate::size_hint::and_all(&[
-                    <$t as Arbitrary>::size_hint(depth),
-                    $( <$ts as Arbitrary>::size_hint(depth) ),*
-                ])
-            }
-        }
-    };
-    ($n: expr,) => {};
+// Helper to safely create arrays since the standard library doesn't
+// provide one yet. Shouldn't be necessary in the future.
+struct ArrayGuard<T, const N: usize> {
+    dst: *mut T,
+    initialized: usize,
 }
 
-impl<'a, T: Arbitrary<'a>> Arbitrary<'a> for [T; 0] {
-    fn arbitrary(_: &mut Unstructured<'a>) -> Result<[T; 0]> {
-        Ok([])
+impl<T, const N: usize> Drop for ArrayGuard<T, N> {
+    fn drop(&mut self) {
+        debug_assert!(self.initialized <= N);
+        let initialized_part = core::ptr::slice_from_raw_parts_mut(self.dst, self.initialized);
+        unsafe {
+            core::ptr::drop_in_place(initialized_part);
+        }
     }
+}
 
-    fn arbitrary_take_rest(_: Unstructured<'a>) -> Result<[T; 0]> {
-        Ok([])
+fn create_array<F, T, const N: usize>(mut cb: F) -> [T; N]
+where
+    F: FnMut(usize) -> T,
+{
+    let mut array: mem::MaybeUninit<[T; N]> = mem::MaybeUninit::uninit();
+    let array_ptr = array.as_mut_ptr();
+    let dst = array_ptr as _;
+    let mut guard: ArrayGuard<T, N> = ArrayGuard {
+        dst,
+        initialized: 0,
+    };
+    unsafe {
+        for (idx, value_ptr) in (&mut *array.as_mut_ptr()).iter_mut().enumerate() {
+            core::ptr::write(value_ptr, cb(idx));
+            guard.initialized += 1;
+        }
+        mem::forget(guard);
+        array.assume_init()
+    }
+}
+
+fn try_create_array<F, T, const N: usize>(mut cb: F) -> Result<[T; N]>
+where
+    F: FnMut(usize) -> Result<T>,
+{
+    let mut array: mem::MaybeUninit<[T; N]> = mem::MaybeUninit::uninit();
+    let array_ptr = array.as_mut_ptr();
+    let dst = array_ptr as _;
+    let mut guard: ArrayGuard<T, N> = ArrayGuard {
+        dst,
+        initialized: 0,
+    };
+    unsafe {
+        for (idx, value_ptr) in (&mut *array.as_mut_ptr()).iter_mut().enumerate() {
+            core::ptr::write(value_ptr, cb(idx)?);
+            guard.initialized += 1;
+        }
+        mem::forget(guard);
+        Ok(array.assume_init())
+    }
+}
+
+impl<'a, T, const N: usize> Arbitrary<'a> for [T; N]
+where
+    T: Arbitrary<'a>,
+{
+    #[inline]
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        try_create_array(|_| <T as Arbitrary<'a>>::arbitrary(u))
     }
 
     #[inline]
-    fn size_hint(_: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and_all(&[])
+    fn arbitrary_take_rest(mut u: Unstructured<'a>) -> Result<Self> {
+        let mut array = Self::arbitrary(&mut u)?;
+        if let Some(last) = array.last_mut() {
+            *last = Arbitrary::arbitrary_take_rest(u)?;
+        }
+        Ok(array)
+    }
+
+    #[inline]
+    fn size_hint(d: usize) -> (usize, Option<usize>) {
+        crate::size_hint::and_all(&create_array::<_, (usize, Option<usize>), N>(|_| {
+            <T as Arbitrary>::size_hint(d)
+        }))
     }
 }
-
-arbitrary_array! { 32, (T, a) (T, b) (T, c) (T, d) (T, e) (T, f) (T, g) (T, h)
-(T, i) (T, j) (T, k) (T, l) (T, m) (T, n) (T, o) (T, p)
-(T, q) (T, r) (T, s) (T, u) (T, v) (T, w) (T, x) (T, y)
-(T, z) (T, aa) (T, ab) (T, ac) (T, ad) (T, ae) (T, af)
-(T, ag) }
 
 impl<'a> Arbitrary<'a> for &'a [u8] {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
