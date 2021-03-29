@@ -571,6 +571,8 @@ macro_rules! arbitrary_tuple {
 }
 arbitrary_tuple!(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z);
 
+// Helper to safely create arrays since the standard library doesn't
+// provide one yet. Shouldn't be necessary in the future.
 struct ArrayGuard<T, const N: usize> {
     dst: *mut T,
     initialized: usize,
@@ -591,8 +593,10 @@ where
     F: FnMut(usize) -> T,
 {
     let mut array: mem::MaybeUninit<[T; N]> = mem::MaybeUninit::uninit();
+    let array_ptr = array.as_mut_ptr();
+    let dst = array_ptr as _;
     let mut guard: ArrayGuard<T, N> = ArrayGuard {
-        dst: array.as_mut_ptr() as _,
+        dst,
         initialized: 0,
     };
     unsafe {
@@ -610,8 +614,10 @@ where
     F: FnMut(usize) -> Result<T>,
 {
     let mut array: mem::MaybeUninit<[T; N]> = mem::MaybeUninit::uninit();
+    let array_ptr = array.as_mut_ptr();
+    let dst = array_ptr as _;
     let mut guard: ArrayGuard<T, N> = ArrayGuard {
-        dst: array.as_mut_ptr() as _,
+        dst,
         initialized: 0,
     };
     unsafe {
