@@ -40,12 +40,15 @@ fn tuple_struct() {
     assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint(0));
 }
 
+#[cfg(feature = "std")]
 #[derive(Clone, Debug, Arbitrary)]
 struct EndingInVec(u8, bool, u32, Vec<u16>);
+#[cfg(feature = "std")]
 #[derive(Clone, Debug, Arbitrary)]
 struct EndingInString(u8, bool, u32, String);
 
 #[test]
+#[cfg(feature = "std")]
 fn test_take_rest() {
     let bytes = [1, 1, 1, 2, 3, 4, 5, 6, 7, 8];
     let s1 = EndingInVec::arbitrary_take_rest(Unstructured::new(&bytes)).unwrap();
@@ -113,6 +116,7 @@ fn derive_enum() {
     assert_eq!((4, Some(17)), <MyEnum as Arbitrary>::size_hint(0));
 }
 
+#[cfg(feature = "std")]
 #[derive(Arbitrary, Debug)]
 enum RecursiveTree {
     Leaf,
@@ -122,6 +126,7 @@ enum RecursiveTree {
     },
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn recursive() {
     let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];

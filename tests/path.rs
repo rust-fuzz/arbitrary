@@ -20,6 +20,7 @@ pub enum Enum {
     Y(u8),
 }
 
+#[cfg(feature = "std")]
 #[derive(arbitrary::Arbitrary, Clone, Debug)]
 struct EndingInVec(u8, bool, u32, Vec<u16>);
 

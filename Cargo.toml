@@ -24,8 +24,13 @@ derive_arbitrary = { version = "1.0.0", path = "./derive", optional = true }
 [dev-dependencies]
 
 [features]
+# Provide support for std types by default.
+default = ["std"]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
+# Whether or not to require the standard library. Turning off this feature
+# makes Arbitrary work with no_std crates.
+std = []
 
 [[example]]
 name = "derive_enum"
