@@ -347,7 +347,8 @@ impl_arbitrary_for_floats! {
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         use std::char;
-        const CHAR_END: u32 = 0x0001_1000;
+        // The highest unicode code point is 0x11_FFFF
+        const CHAR_END: u32 = 0x11_0000;
         // The size of the surrogate blocks
         const SURROGATES_START: u32 = 0xD800;
         let mut c = <u32 as Arbitrary<'a>>::arbitrary(u)? % CHAR_END;
