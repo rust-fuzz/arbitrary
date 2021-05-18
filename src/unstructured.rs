@@ -221,7 +221,7 @@ impl<'a> Unstructured<'a> {
     }
 
     fn arbitrary_byte_size(&mut self) -> Result<usize> {
-        if self.data.len() == 0 {
+        if self.data.is_empty() {
             Ok(0)
         } else if self.data.len() == 1 {
             self.data = &[];
@@ -405,11 +405,9 @@ impl<'a> Unstructured<'a> {
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
         let n = std::cmp::min(buffer.len(), self.data.len());
-        for i in 0..n {
-            buffer[i] = self.data[i];
-        }
-        for i in self.data.len()..buffer.len() {
-            buffer[i] = 0;
+        buffer[..n].copy_from_slice(&self.data[..n]);
+        for byte in buffer[n..].iter_mut() {
+            *byte = 0;
         }
         self.data = &self.data[n..];
         Ok(())

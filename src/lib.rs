@@ -347,12 +347,12 @@ impl_arbitrary_for_floats! {
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         use std::char;
-        const CHAR_END: u32 = 0x0011_000;
+        const CHAR_END: u32 = 0x0001_1000;
         // The size of the surrogate blocks
         const SURROGATES_START: u32 = 0xD800;
         let mut c = <u32 as Arbitrary<'a>>::arbitrary(u)? % CHAR_END;
         if let Some(c) = char::from_u32(c) {
-            return Ok(c);
+            Ok(c)
         } else {
             // We found a surrogate, wrap and try again
             c -= SURROGATES_START;
@@ -904,7 +904,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, |depth| <A as Arbitrary>::size_hint(depth))
+        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
     }
 }
 
@@ -950,7 +950,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, |depth| <A as Arbitrary>::size_hint(depth))
+        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
     }
 }
 
@@ -961,7 +961,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, |depth| <A as Arbitrary>::size_hint(depth))
+        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
     }
 }
 
