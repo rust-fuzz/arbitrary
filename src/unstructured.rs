@@ -322,7 +322,7 @@ impl<'a> Unstructured<'a> {
         let mut offset: usize = 0;
 
         while offset < mem::size_of::<T>()
-            && (range >> T::Widest::from_usize(offset)) > T::Widest::ZERO
+            && (range >> T::Widest::from_usize(offset * 8)) > T::Widest::ZERO
         {
             let byte = bytes.next().ok_or(Error::NotEnoughData)?;
             result = (result << 8) | T::Widest::from_u8(byte);
@@ -698,5 +698,17 @@ mod tests {
         assert_eq!(x, 0);
         let choice = *u.choose(&[42]).unwrap();
         assert_eq!(choice, 42)
+    }
+
+    #[test]
+    fn int_in_range_uses_minimal_amount_of_bytes() {
+        let mut u = Unstructured::new(&[1]);
+        u.int_in_range::<u8>(0..=u8::MAX).unwrap();
+
+        let mut u = Unstructured::new(&[1]);
+        u.int_in_range::<u32>(0..=u8::MAX as u32).unwrap();
+
+        let mut u = Unstructured::new(&[1]);
+        u.int_in_range::<u32>(0..=u8::MAX as u32 + 1).unwrap_err();
     }
 }
