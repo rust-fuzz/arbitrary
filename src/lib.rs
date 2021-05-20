@@ -45,6 +45,7 @@ use core::time::Duration;
 use std::borrow::{Cow, ToOwned};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
@@ -1073,6 +1074,28 @@ implement_nonzero_int! { NonZeroU32, u32 }
 implement_nonzero_int! { NonZeroU64, u64 }
 implement_nonzero_int! { NonZeroU128, u128 }
 implement_nonzero_int! { NonZeroUsize, usize }
+
+impl<'a> Arbitrary<'a> for Ipv4Addr {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        Ok(Ipv4Addr::from(u32::arbitrary(u)?))
+    }
+
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (4, Some(4))
+    }
+}
+
+impl<'a> Arbitrary<'a> for Ipv6Addr {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        Ok(Ipv6Addr::from(u128::arbitrary(u)?))
+    }
+
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (16, Some(16))
+    }
+}
 
 #[cfg(test)]
 mod test {
