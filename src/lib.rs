@@ -1077,7 +1077,7 @@ implement_nonzero_int! { NonZeroUsize, usize }
 
 impl<'a> Arbitrary<'a> for Ipv4Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(Ipv4Addr::from(u32::arbitrary(u).unwrap()))
+        Ok(Ipv4Addr::from(u32::arbitrary(u)?))
     }
 
     #[inline]
