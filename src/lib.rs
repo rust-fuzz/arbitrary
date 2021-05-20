@@ -1088,7 +1088,7 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
 
 impl<'a> Arbitrary<'a> for Ipv6Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(Ipv6Addr::from(u128::arbitrary(u).unwrap()))
+        Ok(Ipv6Addr::from(u128::arbitrary(u)?))
     }
 
     #[inline]
