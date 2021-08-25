@@ -801,7 +801,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     }
 }
 
-impl<'a, A> Arbitrary<'a> for Cow<'a, A>
+impl<'a, 'b, A> Arbitrary<'a> for Cow<'b, A>
 where
     A: ToOwned + ?Sized,
     <A as ToOwned>::Owned: Arbitrary<'a>,
