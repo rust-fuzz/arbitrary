@@ -1,6 +1,6 @@
 [package]
 name = "arbitrary"
-version = "1.0.1" # Make sure this matches the derive crate version
+version = "1.0.2" # Make sure this matches the derive crate version
 authors = [
     "The Rust-Fuzz Project Developers",
     "Nick Fitzgerald <fitzgen@gmail.com>",
