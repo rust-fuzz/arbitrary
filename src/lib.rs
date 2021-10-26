@@ -99,7 +99,7 @@ use std::sync::{Arc, Mutex};
 /// Implementing `Arbitrary` mostly involves nested calls to other `Arbitrary`
 /// arbitrary implementations for each of your `struct` or `enum`'s members. But
 /// sometimes you need some amount of raw data, or you need to generate a
-/// variably-sized collection type, or you something of that sort. The
+/// variably-sized collection type, or something of that sort. The
 /// [`Unstructured`][crate::Unstructured] type helps you with these tasks.
 ///
 /// ```
