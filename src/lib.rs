@@ -795,7 +795,7 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
         };
 
         let mut v = Vec::new();
-        v.append(&mut self.to_vec().clone());
+        v.append(&mut self.to_vec());
         v.append(&mut len_bytes);
         v
     }

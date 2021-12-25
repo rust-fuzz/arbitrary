@@ -165,7 +165,7 @@ fn cons2(fields: &Fields) -> TokenStream {
 fn cons(fields: &Fields) -> TokenStream {
     match fields {
         Fields::Named(names) => {
-            let names = names.named.iter().enumerate().map(|(i, f)| {
+            let names = names.named.iter().enumerate().map(|(_, f)| {
                 let name = f.ident.as_ref().unwrap();
                 //let ctor = ctor(i, f);
                 quote! { #name }
@@ -173,7 +173,7 @@ fn cons(fields: &Fields) -> TokenStream {
             quote! { { #(#names,)* } }
         }
         Fields::Unnamed(names) => {
-            let names = names.unnamed.iter().enumerate().map(|(i, f)| {
+            let names = names.unnamed.iter().enumerate().map(|(i, _)| {
                 let id = Ident::new(&format!("x{}", i), Span::call_site());;
                 quote! { #id }
             });
