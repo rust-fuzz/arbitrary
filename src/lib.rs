@@ -282,7 +282,7 @@ impl<'a> Arbitrary<'a> for () {
     }
 
     fn dearbitrary(&self) -> Vec<u8> {
-        unimplemented!()
+        Vec::new()
     }
 
     #[inline]
@@ -367,7 +367,7 @@ macro_rules! impl_arbitrary_for_floats {
                 }
 
                 fn dearbitrary(&self) -> Vec<u8> {
-                    unimplemented!()
+                    <$unsigned>::dearbitrary(&Self::to_bits(*self))
                 }
 
                 #[inline]
@@ -403,7 +403,7 @@ impl<'a> Arbitrary<'a> for char {
     }
 
     fn dearbitrary(&self) -> Vec<u8> {
-        unimplemented!()
+        u32::dearbitrary(&(*self as u32))
     }
 
     #[inline]
