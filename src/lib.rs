@@ -179,7 +179,9 @@ pub trait Arbitrary<'a>: Sized {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self>;
 
     
-    /// reverts the progress of Arbitrary::arbitrary
+    /// Inverse operation of `arbitrary` aka creating the byte stream, which can be used
+    /// together with an `arbitrary` call to recreate `Self`.
+    /// 
     fn dearbitrary(&self) -> Vec<u8>;
 
     /// Generate an arbitrary value of `Self` from the entirety of the given unstructured data.
