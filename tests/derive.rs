@@ -24,6 +24,14 @@ fn struct_with_named_fields() {
     assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint(0));
 }
 
+#[test]
+fn dearbitrary_struct_with_named_fields() {
+    let rgb = Rgb { r: 4, g: 5, b: 6 };
+    let expected = vec![4, 5, 6];
+    let actual = Rgb::dearbitrary(&rgb);
+    assert_eq!(expected, actual);
+}
+
 #[derive(Copy, Clone, Debug, Arbitrary)]
 struct MyTupleStruct(u8, bool);
 
