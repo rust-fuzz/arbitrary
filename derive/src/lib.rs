@@ -81,7 +81,6 @@ fn gen_dearbitrary_method(input: &DeriveInput, lifetime: LifetimeDef) -> TokenSt
                 quote!(arbitrary::Arbitrary::dearbitrary(&self.#a))
             }
         });
-        //let dearbitrary_take_rest = construct_take_rest(fields);
         quote! {
             fn dearbitrary(&self) -> Vec<u8> {
                 let mut v: Vec<u8> = Vec::new();
@@ -144,7 +143,6 @@ fn cons2(fields: &Fields) -> TokenStream {
         Fields::Named(names) => {
             let names = names.named.iter().enumerate().map(|(i, f)| {
                 let name = f.ident.as_ref().unwrap();
-                //let ctor = ctor(i, f);
                 quote!(v.append(&mut arbitrary::Arbitrary::dearbitrary(#name)))
                 
             });
@@ -167,7 +165,6 @@ fn cons(fields: &Fields) -> TokenStream {
         Fields::Named(names) => {
             let names = names.named.iter().enumerate().map(|(_, f)| {
                 let name = f.ident.as_ref().unwrap();
-                //let ctor = ctor(i, f);
                 quote! { #name }
             });
             quote! { { #(#names,)* } }
