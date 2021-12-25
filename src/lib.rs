@@ -296,9 +296,9 @@ impl<'a> Arbitrary<'a> for bool {
 
     fn dearbitrary(&self) -> Vec<u8> {
         if *self {
-            vec![1]
+            u8::dearbitrary(&1)
         } else {
-            vec![0]
+            u8::dearbitrary(&0)
         }
     }
 
@@ -325,7 +325,7 @@ macro_rules! impl_arbitrary_for_integers {
                 fn dearbitrary(&self) -> Vec<u8> {
                     let mut buf = [0; mem::size_of::<$ty>()];
                     for i in 0..mem::size_of::<$ty>() {
-                        buf[i] = (*self as $unsigned >> (i * 8) & 0xFF ) as u8;
+                        buf[i] = ((*self as $unsigned >> (i * 8)) & 0xFF ) as u8;
                     }
                     buf.to_vec()
                 }
@@ -615,10 +615,16 @@ impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Resu
     }
 }
 
+macro_rules! expr { ($x:expr) => ($x) }
+macro_rules! tuple_index {
+    ($tuple:expr, $idx:tt) => { expr!($tuple.$idx) }
+}
+
+
 macro_rules! arbitrary_tuple {
     () => {};
-    ($last: ident $($xs: ident)*) => {
-        arbitrary_tuple!($($xs)*);
+    ($last: ident -> ($ln: tt) $($xs: ident -> ($n: tt))*) => {
+        arbitrary_tuple!($($xs -> ($n))*);
 
         impl<'a, $($xs: Arbitrary<'a>,)* $last: Arbitrary<'a>> Arbitrary<'a> for ($($xs,)* $last,) {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -626,7 +632,11 @@ macro_rules! arbitrary_tuple {
             }
 
             fn dearbitrary(&self) -> Vec<u8> {
-                unimplemented!()
+                let mut vv: Vec<Vec<u8>> = Vec::new();
+                vv.push(Arbitrary::dearbitrary(&tuple_index!(*self, $ln)));
+                $(vv.push(Arbitrary::dearbitrary(&tuple_index!(*self, $n)));)*
+                vv.reverse();
+                vv.into_iter().flatten().collect()
             }
 
             #[allow(unused_mut, non_snake_case)]
@@ -646,7 +656,33 @@ macro_rules! arbitrary_tuple {
         }
     };
 }
-arbitrary_tuple!(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z);
+arbitrary_tuple!(
+    A -> (25)
+    B -> (24)
+    C -> (23)
+    D -> (22)
+    E -> (21)
+    F -> (20)
+    G -> (19)
+    H -> (18)
+    I -> (17)
+    J -> (16)
+    K -> (15)
+    L -> (14)
+    M -> (13)
+    N -> (12)
+    O -> (11)
+    P -> (10)
+    Q -> (9)
+    R -> (8)
+    S -> (7)
+    T -> (6)
+    U -> (5)
+    V -> (4)
+    W -> (3)
+    X -> (2)
+    Y -> (1)
+    Z -> (0));
 
 // Helper to safely create arrays since the standard library doesn't
 // provide one yet. Shouldn't be necessary in the future.
@@ -1083,9 +1119,6 @@ impl<'a, A: Arbitrary<'a> + Clone> Arbitrary<'a> for Box<[A]> {
     }
 
     fn dearbitrary(&self) -> Vec<u8> {
-        // for x in self.iter() {
-        //     v.push(*x.clone());
-        // }
         <Vec<A> as Arbitrary>::dearbitrary(&self.to_vec())
     }
 
@@ -1355,6 +1388,23 @@ mod test {
         let expected = vec![1, 2, 3, 4];
         let actual = i32::dearbitrary(&x);
         assert_eq!(expected, actual);
+
+        let x = 1 | (2 << 8) | (3 << 16) | (4 << 24) | (5 << 32) | (6 << 40) | (7 << 48) | (8 << 56);
+        let expected = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let actual = i64::dearbitrary(&x);
+        assert_eq!(expected, actual);
+
+        let expected = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let mut buf = Unstructured::new(&expected);
+        let x = i64::arbitrary(&mut buf).unwrap();
+        let actual = i64::dearbitrary(&x);
+        assert_eq!(expected, actual);
+
+        let expected = vec![1, 2, 3, 4];
+        let mut buf = Unstructured::new(&expected);
+        let x = u32::arbitrary(&mut buf).unwrap();
+        let actual = u32::dearbitrary(&x);
+        assert_eq!(expected, actual);
     }
 
     #[test]
@@ -1437,5 +1487,38 @@ mod test {
             (1 + mem::size_of::<usize>(), None),
             <(u8, Vec<u8>) as Arbitrary>::size_hint(0)
         );
+    }
+
+    #[test]
+    fn dearbitrary_tuples() {
+        let x = [9, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+        let mut buf = Unstructured::new(&x);
+        let t = <(u16,u32,u8,u8,u8,u8)>::arbitrary(&mut buf).unwrap();
+        let actual = Arbitrary::dearbitrary(&t);
+
+        assert_eq!(x.to_vec(), actual);
+
+        let x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let mut buf = Unstructured::new(&x);
+        let t = <(bool, bool, u32,u8,u8,u8,u8)>::arbitrary(&mut buf).unwrap();
+        let actual = Arbitrary::dearbitrary(&t);
+
+        assert_eq!(x.to_vec(), actual);
+
+
+        let x = [1, 0, 3, 4, 5, 0, 7, 8, 9, 0];
+        let mut buf = Unstructured::new(&x);
+        let t = <(u32, u8, bool,u8,u8,u8,u8)>::arbitrary(&mut buf).unwrap();
+        let actual = Arbitrary::dearbitrary(&t);
+
+        assert_eq!(x.to_vec(), actual);
+
+        let x = (true, 2);
+        let data = [1, 2, 0, 0, 0, 0, 0, 0, 0];
+        let actual = <(bool, u64)>::dearbitrary(&x);
+        assert_eq!(data.to_vec(), actual);
+        let mut buf = Unstructured::new(&data);
+        let expected = <(bool, u64)>::arbitrary(&mut buf).unwrap();
+        assert_eq!(expected, x);
     }
 }

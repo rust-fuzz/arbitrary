@@ -101,6 +101,15 @@ fn gen_dearbitrary_method(input: &DeriveInput, lifetime: LifetimeDef) -> TokenSt
                 quote! { #ident::#variant_name #ctor => #idx }
             });
 
+            let variants2 = data.variants.iter().enumerate().map(|(i, variant)| {
+                let idx = i as u64;
+                let ctor = cons(&variant.fields);
+                let foo = cons2(&variant.fields);
+
+                let variant_name = &variant.ident;
+                quote! { #ident::#variant_name #ctor => { #foo } }
+            });
+
             let count = data.variants.len() as u64;
             quote! {
                 fn dearbitrary(&self) -> Vec<u8> {
@@ -108,19 +117,48 @@ fn gen_dearbitrary_method(input: &DeriveInput, lifetime: LifetimeDef) -> TokenSt
                     // with slight bias. For details, see:
                     // https://lemire.me/blog/2016/06/30/fast-random-shuffling
                     let mut v = Vec::new();
-                    //x = (u64(xu32) * #count) >> 32
-                    
                     let val = match self {
                         #(#variants,)*
                         _ => unreachable!()
                     };
-                    let x = ((val << 32) / #count ) as u32;
-                    v.append(&mut x.to_le_bytes().to_vec());
-                    v.append(&mut arbitrary::Arbitrary::dearbitrary(self));
+                    let mut x: u32 = ((val << 32) / #count ) as u32;
+                    if ((u64::from(x) * #count) >> 32) < val {
+                        x += 1;
+                    }
+
+                    v.append(&mut u32::dearbitrary(&x).to_vec());
+                    
+                    match self {
+                        #(#variants2,)*
+                        _ => unreachable!()
+                    };
                     v
                 }
             }
         }
+    }
+}
+
+fn cons2(fields: &Fields) -> TokenStream {
+    match fields {
+        Fields::Named(names) => {
+            let names = names.named.iter().enumerate().map(|(i, f)| {
+                let name = f.ident.as_ref().unwrap();
+                //let ctor = ctor(i, f);
+                quote!(v.append(&mut arbitrary::Arbitrary::dearbitrary(#name)))
+                
+            });
+            quote! { { #(#names;)* } }
+        }
+        Fields::Unnamed(names) => {
+            let names = names.unnamed.iter().enumerate().map(|(i, f)| {
+                let id = Ident::new(&format!("x{}", i), Span::call_site());
+                quote!(v.append(&mut arbitrary::Arbitrary::dearbitrary(#id)))
+                
+            });
+            quote! { { #(#names;)* } }
+        }
+        Fields::Unit => quote!()
     }
 }
 
@@ -136,7 +174,8 @@ fn cons(fields: &Fields) -> TokenStream {
         }
         Fields::Unnamed(names) => {
             let names = names.unnamed.iter().enumerate().map(|(i, f)| {
-                quote! { _ }
+                let id = Ident::new(&format!("x{}", i), Span::call_site());;
+                quote! { #id }
             });
             quote! { ( #(#names),* ) }
         }
