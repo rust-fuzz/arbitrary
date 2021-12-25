@@ -1077,13 +1077,16 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
+impl<'a, A: Arbitrary<'a> + Clone> Arbitrary<'a> for Box<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
     }
 
     fn dearbitrary(&self) -> Vec<u8> {
-        unimplemented!()
+        // for x in self.iter() {
+        //     v.push(*x.clone());
+        // }
+        <Vec<A> as Arbitrary>::dearbitrary(&self.to_vec())
     }
 
     #[inline]
