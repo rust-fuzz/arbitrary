@@ -382,6 +382,41 @@ impl<'a> Unstructured<'a> {
         Ok(&choices[idx])
     }
 
+    /// Generate a boolean according to the given ratio.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the numerator and denominator do not meet these constraints:
+    ///
+    /// * `0 < numerator <= denominator`
+    ///
+    /// # Example
+    ///
+    /// Generate a boolean that is `true` five sevenths of the time:
+    ///
+    /// ```
+    /// # fn foo() -> arbitrary::Result<()> {
+    /// use arbitrary::Unstructured;
+    ///
+    /// # let my_data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+    /// let mut u = Unstructured::new(&my_data);
+    ///
+    /// if u.ratio(5, 7)? {
+    ///     // Take this branch 5/7 of the time.
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn ratio<T>(&mut self, numerator: T, denominator: T) -> Result<bool>
+    where
+        T: Int,
+    {
+        assert!(T::ZERO < numerator);
+        assert!(numerator <= denominator);
+        let x = self.int_in_range(T::ONE..=denominator)?;
+        Ok(x <= numerator)
+    }
+
     /// Fill a `buffer` with bytes from the underlying raw data.
     ///
     /// This should only be called within an `Arbitrary` implementation. This is
