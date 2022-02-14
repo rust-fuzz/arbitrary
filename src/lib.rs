@@ -202,6 +202,16 @@ pub trait Arbitrary<'a>: Sized {
     /// default with a better implementation. The
     /// [`size_hint`][crate::size_hint] module will help with this task.
     ///
+    /// ## Invariant
+    ///
+    /// It must be possible to construct every possible output using only inputs
+    /// of lengths bounded by these parameters. This applies to both
+    /// [`Arbitrary::arbitrary`] and [`Arbitrary::arbitrary_take_rest`].
+    ///
+    /// This is trivially true for `(0, None)`. To restrict this further, it must be proven
+    /// that all inputs that are now excluded produced redundant outputs which are still
+    /// possible to produce using the reduced input space.
+    ///
     /// ## The `depth` Parameter
     ///
     /// If you 100% know that the type you are implementing `Arbitrary` for is
