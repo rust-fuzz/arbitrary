@@ -682,8 +682,8 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <usize as Arbitrary>::size_hint(depth)
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -697,8 +697,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -712,8 +712,8 @@ impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K,
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -727,8 +727,8 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -742,8 +742,8 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -759,8 +759,8 @@ impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>, S: BuildHa
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -776,8 +776,8 @@ impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Ar
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -791,8 +791,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -806,8 +806,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -856,8 +856,8 @@ impl<'a> Arbitrary<'a> for &'a str {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(<usize as Arbitrary>::size_hint(depth), (0, None))
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -1263,9 +1263,6 @@ mod test {
             (7, Some(7)),
             <(bool, u16, i32) as Arbitrary<'_>>::size_hint(0)
         );
-        assert_eq!(
-            (1 + mem::size_of::<usize>(), None),
-            <(u8, Vec<u8>) as Arbitrary>::size_hint(0)
-        );
+        assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
     }
 }
