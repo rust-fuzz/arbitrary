@@ -236,19 +236,20 @@ impl<'a> Unstructured<'a> {
 
             // We only consume as many bytes as necessary to cover the entire
             // range of the byte string.
-            let len = if self.data.len() <= std::u8::MAX as usize + 1 {
+            // Note: We cast to u64 so we don't overflow when checking std::u32::MAX + 4 on 32-bit archs
+            let len = if self.data.len() as u64 <= std::u8::MAX as u64 + 1 {
                 let bytes = 1;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
                 Self::int_in_range_impl(0..=max_size as u8, for_size.iter().copied())?.0 as usize
-            } else if self.data.len() <= std::u16::MAX as usize + 1 {
+            } else if self.data.len() as u64 <= std::u16::MAX as u64 + 2 {
                 let bytes = 2;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
                 Self::int_in_range_impl(0..=max_size as u16, for_size.iter().copied())?.0 as usize
-            } else if self.data.len() <= std::u32::MAX as usize + 1 {
+            } else if self.data.len() as u64 <= std::u32::MAX as u64 + 4 {
                 let bytes = 4;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
