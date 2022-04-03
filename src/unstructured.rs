@@ -377,11 +377,53 @@ impl<'a> Unstructured<'a> {
     /// assert!(result.is_err());
     /// ```
     pub fn choose<'b, T>(&mut self, choices: &'b [T]) -> Result<&'b T> {
-        if choices.is_empty() {
+        let idx = self.choose_index(choices.len())?;
+        Ok(&choices[idx])
+    }
+
+    /// Choose a value in `0..len`.
+    ///
+    /// Returns an error if the `len` is zero.
+    ///
+    /// # Examples
+    ///
+    /// Using Fisher–Yates shuffle shuffle to gerate an arbitrary permutation.
+    ///
+    /// [Fisher–Yates shuffle]: https://en.wikipedia.org/wiki/Fisher–Yates_shuffle
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    /// let mut permutation = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    /// let mut to_permute = &mut permutation[..];
+    /// while to_permute.len() > 1 {
+    ///     let idx = u.choose_index(to_permute.len()).unwrap();
+    ///     to_permute.swap(0, idx);
+    ///     to_permute = &mut to_permute[1..];
+    /// }
+    ///
+    /// println!("permutation: {:?}", permutation);
+    /// ```
+    ///
+    /// An error is returned if the length is zero:
+    ///
+    /// ```
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    /// let array: [i32; 0] = [];
+    ///
+    /// let result = u.choose_index(array.len());
+    ///
+    /// assert!(result.is_err());
+    /// ```
+    pub fn choose_index(&mut self, len: usize) -> Result<usize> {
+        if len == 0 {
             return Err(Error::EmptyChoose);
         }
-        let idx = self.int_in_range(0..=choices.len() - 1)?;
-        Ok(&choices[idx])
+        let idx = self.int_in_range(0..=len - 1)?;
+        Ok(idx)
     }
 
     /// Generate a boolean according to the given ratio.
