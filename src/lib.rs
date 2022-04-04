@@ -128,6 +128,10 @@ use std::sync::{Arc, Mutex};
 ///
 ///         Ok(my_collection)
 ///     }
+/// 
+///     fn dearbitrary(&self) -> Vec<u8> {
+///         unimplemented!()
+///     }
 /// }
 /// # }
 /// ```
@@ -173,6 +177,12 @@ pub trait Arbitrary<'a>: Sized {
     ///
     /// See also the documentation for [`Unstructured`][crate::Unstructured].
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self>;
+
+    
+    /// Inverse operation of `arbitrary` aka creating the byte stream, which can be used
+    /// together with an `arbitrary` call to recreate `Self`.
+    /// 
+    fn dearbitrary(&self) -> Vec<u8>;
 
     /// Generate an arbitrary value of `Self` from the entirety of the given unstructured data.
     ///
@@ -244,6 +254,10 @@ pub trait Arbitrary<'a>: Sized {
     ///         // ...
     /// #       unimplemented!()
     ///     }
+    /// 
+    ///     fn dearbitrary(&self) -> Vec<u8> {
+    ///         unimplemented!()
+    ///     }
     ///
     ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
     ///         // Protect against potential infinite recursion with
@@ -277,6 +291,10 @@ impl<'a> Arbitrary<'a> for () {
         Ok(())
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
@@ -286,6 +304,14 @@ impl<'a> Arbitrary<'a> for () {
 impl<'a> Arbitrary<'a> for bool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(<u8 as Arbitrary<'a>>::arbitrary(u)? & 1 == 1)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        if *self {
+            u8::dearbitrary(&1)
+        } else {
+            u8::dearbitrary(&0)
+        }
     }
 
     #[inline]
@@ -306,6 +332,14 @@ macro_rules! impl_arbitrary_for_integers {
                         x |= buf[i] as $unsigned << (i * 8);
                     }
                     Ok(x as $ty)
+                }
+
+                fn dearbitrary(&self) -> Vec<u8> {
+                    let mut buf = [0; mem::size_of::<$ty>()];
+                    for i in 0..mem::size_of::<$ty>() {
+                        buf[i] = ((*self as $unsigned >> (i * 8)) & 0xFF ) as u8;
+                    }
+                    buf.to_vec()
                 }
 
                 #[inline]
@@ -342,6 +376,10 @@ macro_rules! impl_arbitrary_for_floats {
                     Ok(Self::from_bits(<$unsigned as Arbitrary<'a>>::arbitrary(u)?))
                 }
 
+                fn dearbitrary(&self) -> Vec<u8> {
+                    <$unsigned>::dearbitrary(&Self::to_bits(*self))
+                }
+
                 #[inline]
                 fn size_hint(depth: usize) -> (usize, Option<usize>) {
                     <$unsigned as Arbitrary<'a>>::size_hint(depth)
@@ -374,6 +412,10 @@ impl<'a> Arbitrary<'a> for char {
         }
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        u32::dearbitrary(&(*self as u32))
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <u32 as Arbitrary<'a>>::size_hint(depth)
@@ -383,6 +425,10 @@ impl<'a> Arbitrary<'a> for char {
 impl<'a> Arbitrary<'a> for AtomicBool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -396,6 +442,10 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <isize as Arbitrary<'a>>::size_hint(depth)
@@ -405,6 +455,10 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
 impl<'a> Arbitrary<'a> for AtomicUsize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -428,6 +482,10 @@ macro_rules! impl_range {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
                 let value: $value_ty = Arbitrary::arbitrary(u)?;
                 Ok($fun(value, $fun_closure))
+            }
+
+            fn dearbitrary(&self) -> Vec<u8> {
+                unimplemented!()
             }
 
             #[inline]
@@ -509,6 +567,10 @@ impl<'a> Arbitrary<'a> for Duration {
         ))
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
@@ -525,6 +587,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
         } else {
             None
         })
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -545,6 +611,10 @@ impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Resu
         })
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
@@ -557,14 +627,28 @@ impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Resu
     }
 }
 
+macro_rules! expr { ($x:expr) => ($x) }
+macro_rules! tuple_index {
+    ($tuple:expr, $idx:tt) => { expr!($tuple.$idx) }
+}
+
+
 macro_rules! arbitrary_tuple {
     () => {};
-    ($last: ident $($xs: ident)*) => {
-        arbitrary_tuple!($($xs)*);
+    ($last: ident -> ($ln: tt) $($xs: ident -> ($n: tt))*) => {
+        arbitrary_tuple!($($xs -> ($n))*);
 
         impl<'a, $($xs: Arbitrary<'a>,)* $last: Arbitrary<'a>> Arbitrary<'a> for ($($xs,)* $last,) {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
                 Ok(($($xs::arbitrary(u)?,)* Arbitrary::arbitrary(u)?,))
+            }
+
+            fn dearbitrary(&self) -> Vec<u8> {
+                let mut vv: Vec<Vec<u8>> = Vec::new();
+                vv.push(Arbitrary::dearbitrary(&tuple_index!(*self, $ln)));
+                $(vv.push(Arbitrary::dearbitrary(&tuple_index!(*self, $n)));)*
+                vv.reverse();
+                vv.into_iter().flatten().collect()
             }
 
             #[allow(unused_mut, non_snake_case)]
@@ -584,7 +668,33 @@ macro_rules! arbitrary_tuple {
         }
     };
 }
-arbitrary_tuple!(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z);
+arbitrary_tuple!(
+    A -> (25)
+    B -> (24)
+    C -> (23)
+    D -> (22)
+    E -> (21)
+    F -> (20)
+    G -> (19)
+    H -> (18)
+    I -> (17)
+    J -> (16)
+    K -> (15)
+    L -> (14)
+    M -> (13)
+    N -> (12)
+    O -> (11)
+    P -> (10)
+    Q -> (9)
+    R -> (8)
+    S -> (7)
+    T -> (6)
+    U -> (5)
+    V -> (4)
+    W -> (3)
+    X -> (2)
+    Y -> (1)
+    Z -> (0));
 
 // Helper to safely create arrays since the standard library doesn't
 // provide one yet. Shouldn't be necessary in the future.
@@ -654,6 +764,10 @@ where
         try_create_array(|_| <T as Arbitrary<'a>>::arbitrary(u))
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn arbitrary_take_rest(mut u: Unstructured<'a>) -> Result<Self> {
         let mut array = Self::arbitrary(&mut u)?;
@@ -677,6 +791,27 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
         u.bytes(len)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        let mut len_bytes = if self.len() <= core::u8::MAX as usize + 1 {
+            let l = self.len() as u8;
+            vec![l]
+        } else if self.len() <= core::u16::MAX as usize + 1 {
+            let l = self.len() as u16;
+            l.to_le_bytes().to_vec()
+        } else if self.len() <= core::u32::MAX as usize + 1 {
+            let l = self.len() as u32;
+            l.to_le_bytes().to_vec()
+        } else {
+            let l = self.len() as u64;
+            l.to_le_bytes().to_vec()
+        };
+
+        let mut v = Vec::new();
+        v.append(&mut self.to_vec());
+        v.append(&mut len_bytes);
+        v
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         Ok(u.take_rest())
     }
@@ -690,6 +825,16 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        let mut v = Vec::new();
+        for a in self {
+            v.append(&mut bool::dearbitrary(&true));
+            v.append(&mut A::dearbitrary(a));
+        }
+        v.append(&mut bool::dearbitrary(&false));
+        v
     }
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
@@ -707,6 +852,10 @@ impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K,
         u.arbitrary_iter()?.collect()
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         u.arbitrary_take_rest_iter()?.collect()
     }
@@ -722,6 +871,10 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         u.arbitrary_take_rest_iter()?.collect()
     }
@@ -735,6 +888,10 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
@@ -754,6 +911,10 @@ impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>, S: BuildHa
         u.arbitrary_iter()?.collect()
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         u.arbitrary_take_rest_iter()?.collect()
     }
@@ -771,6 +932,10 @@ impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Ar
         u.arbitrary_iter()?.collect()
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         u.arbitrary_take_rest_iter()?.collect()
     }
@@ -786,6 +951,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
         u.arbitrary_iter()?.collect()
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         u.arbitrary_take_rest_iter()?.collect()
     }
@@ -799,6 +968,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
@@ -818,6 +991,10 @@ where
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Cow::Owned)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -848,6 +1025,10 @@ impl<'a> Arbitrary<'a> for &'a str {
         }
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         let bytes = u.take_rest();
         str::from_utf8(bytes)
@@ -864,6 +1045,10 @@ impl<'a> Arbitrary<'a> for &'a str {
 impl<'a> Arbitrary<'a> for String {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <&str as Arbitrary>::arbitrary(u).map(Into::into)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
@@ -884,6 +1069,10 @@ impl<'a> Arbitrary<'a> for CString {
         })
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <Vec<u8> as Arbitrary>::size_hint(depth)
@@ -893,6 +1082,10 @@ impl<'a> Arbitrary<'a> for CString {
 impl<'a> Arbitrary<'a> for OsString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(From::from)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -906,6 +1099,10 @@ impl<'a> Arbitrary<'a> for PathBuf {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <OsString as Arbitrary>::size_hint(depth)
@@ -914,7 +1111,12 @@ impl<'a> Arbitrary<'a> for PathBuf {
 
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Arbitrary::arbitrary(u).map(Self::new)
+        let a = Arbitrary::arbitrary(u);
+        a.map(Self::new)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        A::dearbitrary(&*self)
     }
 
     #[inline]
@@ -923,9 +1125,13 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
+impl<'a, A: Arbitrary<'a> + Clone> Arbitrary<'a> for Box<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        <Vec<A> as Arbitrary>::dearbitrary(&self.to_vec())
     }
 
     #[inline]
@@ -937,6 +1143,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
 impl<'a> Arbitrary<'a> for Box<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -963,6 +1173,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
@@ -972,6 +1186,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -985,6 +1203,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Cell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <A as Arbitrary<'a>>::size_hint(depth)
@@ -994,6 +1216,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Cell<A> {
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for RefCell<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -1007,6 +1233,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
         Arbitrary::arbitrary(u).map(Self::new)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <A as Arbitrary<'a>>::size_hint(depth)
@@ -1016,6 +1246,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Mutex<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -1029,6 +1263,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for iter::Empty<A> {
         Ok(iter::empty())
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
@@ -1040,6 +1278,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::marker::PhantomData<A> {
         Ok(::std::marker::PhantomData)
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
@@ -1049,6 +1291,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::marker::PhantomData<A> {
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -1065,6 +1311,10 @@ macro_rules! implement_nonzero_int {
                     Some(n) => Ok(n),
                     None => Err(Error::IncorrectFormat),
                 }
+            }
+
+            fn dearbitrary(&self) -> Vec<u8> {
+                unimplemented!()
             }
 
             #[inline]
@@ -1093,6 +1343,10 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
         Ok(Ipv4Addr::from(u32::arbitrary(u)?))
     }
 
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (4, Some(4))
@@ -1102,6 +1356,10 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
 impl<'a> Arbitrary<'a> for Ipv6Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Ipv6Addr::from(u128::arbitrary(u)?))
+    }
+
+    fn dearbitrary(&self) -> Vec<u8> {
+        unimplemented!()
     }
 
     #[inline]
@@ -1187,12 +1445,45 @@ mod test {
     }
 
     #[test]
+    fn dearbitrary_for_integers() {
+        let x = 1 | (2 << 8) | (3 << 16) | (4 << 24);
+        let expected = vec![1, 2, 3, 4];
+        let actual = i32::dearbitrary(&x);
+        assert_eq!(expected, actual);
+
+        let x = 1 | (2 << 8) | (3 << 16) | (4 << 24) | (5 << 32) | (6 << 40) | (7 << 48) | (8 << 56);
+        let expected = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let actual = i64::dearbitrary(&x);
+        assert_eq!(expected, actual);
+
+        let expected = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let mut buf = Unstructured::new(&expected);
+        let x = i64::arbitrary(&mut buf).unwrap();
+        let actual = i64::dearbitrary(&x);
+        assert_eq!(expected, actual);
+
+        let expected = vec![1, 2, 3, 4];
+        let mut buf = Unstructured::new(&expected);
+        let x = u32::arbitrary(&mut buf).unwrap();
+        let actual = u32::dearbitrary(&x);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn arbitrary_for_bytes() {
         let x = [1, 2, 3, 4, 4];
         let mut buf = Unstructured::new(&x);
         let expected = &[1, 2, 3, 4];
         let actual = checked_arbitrary::<&[u8]>(&mut buf).unwrap();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn dearbitrary_for_bytes() {
+        let x = &[1u8, 2u8, 3u8, 4u8];
+        let expected = [1, 2, 3, 4, 4];
+        let actual = <&[u8] as Arbitrary>::dearbitrary(&x.as_slice());
+        assert_eq!(expected.as_slice(), actual);
     }
 
     #[test]
@@ -1225,6 +1516,14 @@ mod test {
             checked_arbitrary::<String>(&mut Unstructured::new(&x)).unwrap(),
             "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x01\x02\x03"
         );
+    }
+
+    #[test]
+    fn dearbitrary_collection() {
+        let x = vec![2, 4, 6, 8, 1];
+        let expected = [1, 2, 1, 4, 1, 6, 1, 8, 1, 1, 0];
+        let actual = Vec::<u8>::dearbitrary(&x);
+        assert_eq!(expected.as_slice(), actual);
     }
 
     #[test]
@@ -1264,5 +1563,38 @@ mod test {
             <(bool, u16, i32) as Arbitrary<'_>>::size_hint(0)
         );
         assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
+    }
+
+    #[test]
+    fn dearbitrary_tuples() {
+        let x = [9, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+        let mut buf = Unstructured::new(&x);
+        let t = <(u16,u32,u8,u8,u8,u8)>::arbitrary(&mut buf).unwrap();
+        let actual = Arbitrary::dearbitrary(&t);
+
+        assert_eq!(x.to_vec(), actual);
+
+        let x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let mut buf = Unstructured::new(&x);
+        let t = <(bool, bool, u32,u8,u8,u8,u8)>::arbitrary(&mut buf).unwrap();
+        let actual = Arbitrary::dearbitrary(&t);
+
+        assert_eq!(x.to_vec(), actual);
+
+
+        let x = [1, 0, 3, 4, 5, 0, 7, 8, 9, 0];
+        let mut buf = Unstructured::new(&x);
+        let t = <(u32, u8, bool,u8,u8,u8,u8)>::arbitrary(&mut buf).unwrap();
+        let actual = Arbitrary::dearbitrary(&t);
+
+        assert_eq!(x.to_vec(), actual);
+
+        let x = (true, 2);
+        let data = [1, 2, 0, 0, 0, 0, 0, 0, 0];
+        let actual = <(bool, u64)>::dearbitrary(&x);
+        assert_eq!(data.to_vec(), actual);
+        let mut buf = Unstructured::new(&data);
+        let expected = <(bool, u64)>::arbitrary(&mut buf).unwrap();
+        assert_eq!(expected, x);
     }
 }

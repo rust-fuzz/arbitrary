@@ -13,6 +13,7 @@ pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStr
         build_arbitrary_lifetime(input.generics.clone());
 
     let arbitrary_method = gen_arbitrary_method(&input, lifetime_without_bounds.clone());
+    let dearbitrary_method = gen_dearbitrary_method(&input, lifetime_without_bounds.clone());
     let size_hint_method = gen_size_hint_method(&input);
     let name = input.ident;
     // Add a bound `T: Arbitrary` to every type parameter T.
@@ -31,6 +32,7 @@ pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStr
     (quote! {
         impl #impl_generics arbitrary::Arbitrary<#lifetime_without_bounds> for #name #ty_generics #where_clause {
             #arbitrary_method
+            #dearbitrary_method
             #size_hint_method
         }
     })
@@ -65,6 +67,138 @@ fn add_trait_bounds(mut generics: Generics, lifetime: LifetimeDef) -> Generics {
         }
     }
     generics
+}
+
+fn gen_dearbitrary_method(input: &DeriveInput, lifetime: LifetimeDef) -> TokenStream {
+    let ident = &input.ident;
+    let dearbitrary_structlike = |fields: &syn::Fields| {
+        let dearbitrary = deconstruct(fields, |i, f| {
+            if f.ident.is_some() {
+                let n = &f.ident;
+                quote!(arbitrary::Arbitrary::dearbitrary(&self.#n))
+            } else {
+                let a = i;
+                quote!(arbitrary::Arbitrary::dearbitrary(&self.#a))
+            }
+        });
+        quote! {
+            fn dearbitrary(&self) -> Vec<u8> {
+                let mut v: Vec<u8> = Vec::new();
+                #dearbitrary
+                v
+            }
+        }
+    };
+    match &input.data {
+        Data::Struct(data) => dearbitrary_structlike(&data.fields),
+        Data::Union(data) => dearbitrary_structlike(&Fields::Named(data.fields.clone())),
+        Data::Enum(data) => {
+            let variants = data.variants.iter().enumerate().map(|(i, variant)| {
+                let idx = i as u64;
+                let ctor = cons(&variant.fields);
+                let variant_name = &variant.ident;
+                quote! { #ident::#variant_name #ctor => #idx }
+            });
+
+            let variants2 = data.variants.iter().enumerate().map(|(i, variant)| {
+                let idx = i as u64;
+                let ctor = cons(&variant.fields);
+                let foo = cons2(&variant.fields);
+
+                let variant_name = &variant.ident;
+                quote! { #ident::#variant_name #ctor => { #foo } }
+            });
+
+            let count = data.variants.len() as u64;
+            quote! {
+                fn dearbitrary(&self) -> Vec<u8> {
+                    // Use a multiply + shift to generate a ranged random number
+                    // with slight bias. For details, see:
+                    // https://lemire.me/blog/2016/06/30/fast-random-shuffling
+                    let mut v = Vec::new();
+                    let val = match self {
+                        #(#variants,)*
+                        _ => unreachable!()
+                    };
+                    let mut x: u32 = ((val << 32) / #count ) as u32;
+                    if ((u64::from(x) * #count) >> 32) < val {
+                        x += 1;
+                    }
+
+                    v.append(&mut u32::dearbitrary(&x).to_vec());
+                    
+                    match self {
+                        #(#variants2,)*
+                        _ => unreachable!()
+                    };
+                    v
+                }
+            }
+        }
+    }
+}
+
+fn cons2(fields: &Fields) -> TokenStream {
+    match fields {
+        Fields::Named(names) => {
+            let names = names.named.iter().enumerate().map(|(i, f)| {
+                let name = f.ident.as_ref().unwrap();
+                quote!(v.append(&mut arbitrary::Arbitrary::dearbitrary(#name)))
+                
+            });
+            quote! { { #(#names;)* } }
+        }
+        Fields::Unnamed(names) => {
+            let names = names.unnamed.iter().enumerate().map(|(i, f)| {
+                let id = Ident::new(&format!("x{}", i), Span::call_site());
+                quote!(v.append(&mut arbitrary::Arbitrary::dearbitrary(#id)))
+                
+            });
+            quote! { { #(#names;)* } }
+        }
+        Fields::Unit => quote!()
+    }
+}
+
+fn cons(fields: &Fields) -> TokenStream {
+    match fields {
+        Fields::Named(names) => {
+            let names = names.named.iter().enumerate().map(|(_, f)| {
+                let name = f.ident.as_ref().unwrap();
+                quote! { #name }
+            });
+            quote! { { #(#names,)* } }
+        }
+        Fields::Unnamed(names) => {
+            let names = names.unnamed.iter().enumerate().map(|(i, _)| {
+                let id = Ident::new(&format!("x{}", i), Span::call_site());;
+                quote! { #id }
+            });
+            quote! { ( #(#names),* ) }
+        }
+        Fields::Unit => quote!(),
+    }
+}
+
+fn deconstruct(fields: &Fields, ctor: impl Fn(usize, &Field) -> TokenStream) -> TokenStream {
+    match fields {
+        Fields::Named(names) => {
+            let names = names.named.iter().enumerate().map(|(i, f)| {
+                let name = f.ident.as_ref().unwrap();
+                let ctor = ctor(i, f);
+                quote! { v.append(&mut #ctor) }
+            });
+            quote! { { #(#names;)* } }
+        }
+        Fields::Unnamed(names) => {
+            let names = names.unnamed.iter().enumerate().map(|(i, f)| {
+                let ctor = ctor(i, f);                
+                quote! { v.append(&mut #ctor) }
+            });
+            quote! { { #(#names;)* } }
+        }
+        Fields::Unit => quote!(),
+    }
 }
 
 fn gen_arbitrary_method(input: &DeriveInput, lifetime: LifetimeDef) -> TokenStream {

@@ -24,6 +24,14 @@ fn struct_with_named_fields() {
     assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint(0));
 }
 
+#[test]
+fn dearbitrary_struct_with_named_fields() {
+    let rgb = Rgb { r: 4, g: 5, b: 6 };
+    let expected = vec![4, 5, 6];
+    let actual = Rgb::dearbitrary(&rgb);
+    assert_eq!(expected, actual);
+}
+
 #[derive(Copy, Clone, Debug, Arbitrary)]
 struct MyTupleStruct(u8, bool);
 
@@ -60,11 +68,42 @@ fn test_take_rest() {
     assert_eq!(s2.3, "\x05\x06\x07\x08");
 }
 
-#[derive(Copy, Clone, Debug, Arbitrary)]
+#[derive(Copy, Clone, Debug, Arbitrary, PartialEq)]
 enum MyEnum {
     Unit,
     Tuple(u8, u16),
     Struct { a: u32, b: (bool, u64) },
+}
+
+#[test]
+fn dearbitrary_enum() {
+    let x = MyEnum::Unit;
+    let expected = vec![0, 0, 0, 0];
+    let actual = MyEnum::dearbitrary(&x);
+    assert_eq!(actual, expected);
+    let mut buf = Unstructured::new(&expected);
+    let actual2 = MyEnum::arbitrary(&mut buf).unwrap();
+    assert_eq!(actual2, x);
+
+    let x = MyEnum::Tuple(1, 2);
+    let expected = vec![86, 85, 85, 85, 1, 2, 0];
+    let actual = MyEnum::dearbitrary(&x);
+    assert_eq!(actual, expected);
+
+
+    let mut buf = Unstructured::new(&expected);
+    let actual2 = MyEnum::arbitrary(&mut buf).unwrap();
+    assert_eq!(actual2, x);
+
+
+    let x =  MyEnum::Struct { a: 157, b: (true, 1) };
+    let expected = vec![171, 170, 170, 170, 157, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0];
+    let actual = MyEnum::dearbitrary(&x);
+    assert_eq!(actual, expected);
+
+    let mut buf = Unstructured::new(&expected);
+    let actual2 = MyEnum::arbitrary(&mut buf).unwrap();
+    assert_eq!(actual2, x);
 }
 
 #[test]

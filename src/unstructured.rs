@@ -208,6 +208,10 @@ impl<'a> Unstructured<'a> {
     ///
     ///         Ok(my_collection)
     ///     }
+    /// 
+    ///     fn dearbitrary(&self) -> Vec<u8> {
+    ///         unimplemented!()
+    ///     }
     /// }
     /// ```
     pub fn arbitrary_len<ElementType>(&mut self) -> Result<usize>
