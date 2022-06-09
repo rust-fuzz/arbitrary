@@ -468,15 +468,16 @@ impl<'a> Unstructured<'a> {
     /// `Arbitrary` implementations like `<Vec<u8>>::arbitrary` and
     /// `String::arbitrary` over using this method directly.
     ///
-    /// If this `Unstructured` does not have enough underlying data to fill the
-    /// whole `buffer`, it pads the buffer out with zeros.
+    /// If this `Unstructured` only has enough underlying data to fill only part of
+    /// the whole `buffer`, it pads the rest of the buffer with zeros. If the
+    /// `Unstructured` is completely exhausted, an error is returned.
     ///
     /// # Example
     ///
     /// ```
     /// use arbitrary::Unstructured;
     ///
-    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    /// let mut u = Unstructured::new(&[1, 2, 3]);
     ///
     /// let mut buf = [0; 2];
     ///
@@ -484,12 +485,15 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(buf, [1, 2]);
     ///
     /// assert!(u.fill_buffer(&mut buf).is_ok());
-    /// assert_eq!(buf, [3, 4]);
+    /// assert_eq!(buf, [3, 0]);
     ///
-    /// assert!(u.fill_buffer(&mut buf).is_ok());
-    /// assert_eq!(buf, [0, 0]);
+    /// assert!(u.fill_buffer(&mut buf).is_err());
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
+        if self.is_empty() {
+            return Err(Error::NotEnoughData);
+        }
+
         let n = std::cmp::min(buffer.len(), self.data.len());
         buffer[..n].copy_from_slice(&self.data[..n]);
         for byte in buffer[n..].iter_mut() {

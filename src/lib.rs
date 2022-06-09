@@ -1166,7 +1166,7 @@ mod test {
 
     #[test]
     fn finite_buffer_fill_buffer() {
-        let x = [1, 2, 3, 4];
+        let x = [1, 2, 3, 4, 5];
         let mut rb = Unstructured::new(&x);
         let mut z = [0; 2];
         rb.fill_buffer(&mut z).unwrap();
@@ -1174,7 +1174,9 @@ mod test {
         rb.fill_buffer(&mut z).unwrap();
         assert_eq!(z, [3, 4]);
         rb.fill_buffer(&mut z).unwrap();
-        assert_eq!(z, [0, 0]);
+        assert_eq!(z, [5, 0]);
+
+        assert!(rb.fill_buffer(&mut z).is_err());
     }
 
     #[test]
