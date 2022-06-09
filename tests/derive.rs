@@ -135,6 +135,17 @@ fn recursive() {
     );
 }
 
+#[test]
+fn recursive_first_variant() {
+    #[derive(PartialEq, Eq, Debug, Arbitrary)]
+    enum Nat {
+        Succ(Box<Nat>),
+        Zero,
+    }
+
+    assert!(Nat::arbitrary(&mut Unstructured::new(&[])).is_err());
+}
+
 #[derive(Arbitrary, Debug)]
 struct Generic<T> {
     inner: T,
