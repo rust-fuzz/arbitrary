@@ -186,3 +186,45 @@ fn two_lifetimes() {
     assert_eq!(lower, 0);
     assert_eq!(upper, None);
 }
+
+#[test]
+fn recursive_and_empty_input() {
+    // None of the following derives should result in a stack overflow. See
+    // https://github.com/rust-fuzz/arbitrary/issues/107 for details.
+
+    #[derive(Debug, Arbitrary)]
+    enum Nat {
+        Succ(Box<Nat>),
+        Zero,
+    }
+
+    let _ = Nat::arbitrary(&mut Unstructured::new(&[]));
+
+    #[derive(Debug, Arbitrary)]
+    enum Nat2 {
+        Zero,
+        Succ(Box<Nat2>),
+    }
+
+    let _ = Nat2::arbitrary(&mut Unstructured::new(&[]));
+
+    #[derive(Debug, Arbitrary)]
+    struct Nat3 {
+        f: Option<Box<Nat3>>,
+    }
+
+    let _ = Nat3::arbitrary(&mut Unstructured::new(&[]));
+
+    #[derive(Debug, Arbitrary)]
+    struct Nat4(Option<Box<Nat4>>);
+
+    let _ = Nat4::arbitrary(&mut Unstructured::new(&[]));
+
+    #[derive(Debug, Arbitrary)]
+    enum Nat5 {
+        Zero,
+        Succ { f: Box<Nat5> },
+    }
+
+    let _ = Nat5::arbitrary(&mut Unstructured::new(&[]));
+}
