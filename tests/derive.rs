@@ -1,5 +1,9 @@
 #![cfg(feature = "derive")]
 
+// Various structs/fields that we are deriving `Arbitrary` for aren't actually
+// used except to exercise the derive.
+#![allow(dead_code)]
+
 use arbitrary::*;
 
 fn arbitrary_from<'a, T: Arbitrary<'a>>(input: &'a [u8]) -> T {
