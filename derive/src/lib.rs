@@ -36,6 +36,7 @@ pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStr
 
     (quote! {
         thread_local! {
+            #[allow(non_upper_case_globals)]
             static #recursive_count: std::cell::Cell<u32> = std::cell::Cell::new(0);
         }
 
