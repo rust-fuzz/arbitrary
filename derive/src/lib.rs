@@ -85,17 +85,26 @@ fn with_recursive_count_guard(
     expr: impl quote::ToTokens,
 ) -> impl quote::ToTokens {
     quote! {
-        #recursive_count.with(|count| {
-            if count.get() > 0 && u.is_empty() {
-                return Err(arbitrary::Error::NotEnoughData);
-            }
+        let guard_against_recursion = u.is_empty();
+        if guard_against_recursion {
+            #recursive_count.with(|count| {
+                if count.get() > 0 {
+                    return Err(arbitrary::Error::NotEnoughData);
+                }
+                count.set(count.get() + 1);
+                Ok(())
+            })?;
+        }
 
-            count.set(count.get() + 1);
-            let result = { #expr };
-            count.set(count.get() - 1);
+        let result = (|| { #expr })();
 
-            result
-        })
+        if guard_against_recursion {
+            #recursive_count.with(|count| {
+                count.set(count.get() - 1);
+            });
+        }
+
+        result
     }
 }
 
