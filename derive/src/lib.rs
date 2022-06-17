@@ -35,15 +35,17 @@ pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStr
     let (_, ty_generics, where_clause) = generics.split_for_impl();
 
     (quote! {
-        thread_local! {
-            #[allow(non_upper_case_globals)]
-            static #recursive_count: std::cell::Cell<u32> = std::cell::Cell::new(0);
-        }
+        const _: () = {
+            thread_local! {
+                #[allow(non_upper_case_globals)]
+                static #recursive_count: std::cell::Cell<u32> = std::cell::Cell::new(0);
+            }
 
-        impl #impl_generics arbitrary::Arbitrary<#lifetime_without_bounds> for #name #ty_generics #where_clause {
-            #arbitrary_method
-            #size_hint_method
-        }
+            impl #impl_generics arbitrary::Arbitrary<#lifetime_without_bounds> for #name #ty_generics #where_clause {
+                #arbitrary_method
+                #size_hint_method
+            }
+        };
     })
     .into()
 }
