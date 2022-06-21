@@ -140,12 +140,15 @@ pub trait Arbitrary<'a>: Sized {
     /// Arbitrary>::arbitrary` to construct an arbitrary instance of `MyType`
     /// from that unstuctured data.
     ///
-    /// Implementation may return an error if there is not enough data to
-    /// construct a full instance of `Self`. This is generally OK: it is better
-    /// to exit early and get the fuzzer to provide more input data, than it is
-    /// to generate default values in place of the missing data, which would
-    /// bias the distribution of generated values, and ultimately make fuzzing
-    /// less efficient.
+    /// Implementations may return an error if there is not enough data to
+    /// construct a full instance of `Self`, or they may fill out the rest of
+    /// `Self` with dummy values. Using dummy values when the underlying data is
+    /// exhausted can help avoid accidentally "defeating" some of the fuzzer's
+    /// mutations to the underlying byte stream that might otherwise lead to
+    /// interesting runtime behavior or new code coverage if only we had just a
+    /// few more bytes. However, it also requires that implementations for
+    /// recursive types (e.g. `struct Foo(Option<Box<Foo>>)`) avoid infinite
+    /// recursion when the underlying data is exhausted.
     ///
     /// ```
     /// # #[cfg(feature = "derive")] fn foo() {
