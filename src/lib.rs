@@ -177,11 +177,13 @@ pub trait Arbitrary<'a>: Sized {
     /// See also the documentation for [`Unstructured`][crate::Unstructured].
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self>;
 
-    /// Generate an arbitrary value of `Self` from the entirety of the given unstructured data.
+    /// Generate an arbitrary value of `Self` from the entirety of the given
+    /// unstructured data.
     ///
-    /// This is similar to Arbitrary::arbitrary, however it assumes that it is the
-    /// last consumer of the given data, and is thus able to consume it all if it needs.
-    /// See also the documentation for [`Unstructured`][crate::Unstructured].
+    /// This is similar to Arbitrary::arbitrary, however it assumes that it is
+    /// the last consumer of the given data, and is thus able to consume it all
+    /// if it needs.  See also the documentation for
+    /// [`Unstructured`][crate::Unstructured].
     fn arbitrary_take_rest(mut u: Unstructured<'a>) -> Result<Self> {
         Self::arbitrary(&mut u)
     }
@@ -211,9 +213,10 @@ pub trait Arbitrary<'a>: Sized {
     /// of lengths bounded by these parameters. This applies to both
     /// [`Arbitrary::arbitrary`] and [`Arbitrary::arbitrary_take_rest`].
     ///
-    /// This is trivially true for `(0, None)`. To restrict this further, it must be proven
-    /// that all inputs that are now excluded produced redundant outputs which are still
-    /// possible to produce using the reduced input space.
+    /// This is trivially true for `(0, None)`. To restrict this further, it
+    /// must be proven that all inputs that are now excluded produced redundant
+    /// outputs which are still possible to produce using the reduced input
+    /// space.
     ///
     /// ## The `depth` Parameter
     ///
