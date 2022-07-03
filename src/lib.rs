@@ -138,7 +138,7 @@ pub trait Arbitrary<'a>: Sized {
     /// perhaps given to you by a fuzzer like AFL or libFuzzer. You wrap this
     /// raw data in an `Unstructured`, and then you can call `<MyType as
     /// Arbitrary>::arbitrary` to construct an arbitrary instance of `MyType`
-    /// from that unstuctured data.
+    /// from that unstructured data.
     ///
     /// Implementations may return an error if there is not enough data to
     /// construct a full instance of `Self`, or they may fill out the rest of
@@ -975,6 +975,17 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
     }
 }
 
+impl<'a> Arbitrary<'a> for Arc<str> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        <&str as Arbitrary>::arbitrary(u).map(Into::into)
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <&str as Arbitrary>::size_hint(depth)
+    }
+}
+
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -983,6 +994,17 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+    }
+}
+
+impl<'a> Arbitrary<'a> for Rc<str> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        <&str as Arbitrary>::arbitrary(u).map(Into::into)
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <&str as Arbitrary>::size_hint(depth)
     }
 }
 
