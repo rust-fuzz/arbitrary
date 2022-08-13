@@ -34,6 +34,7 @@ pub use unstructured::Unstructured;
 
 pub mod size_hint;
 
+use core::array;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::iter;
 use core::mem;
@@ -603,27 +604,6 @@ impl<T, const N: usize> Drop for ArrayGuard<T, N> {
     }
 }
 
-fn create_array<F, T, const N: usize>(mut cb: F) -> [T; N]
-where
-    F: FnMut(usize) -> T,
-{
-    let mut array: mem::MaybeUninit<[T; N]> = mem::MaybeUninit::uninit();
-    let array_ptr = array.as_mut_ptr();
-    let dst = array_ptr as _;
-    let mut guard: ArrayGuard<T, N> = ArrayGuard {
-        dst,
-        initialized: 0,
-    };
-    unsafe {
-        for (idx, value_ptr) in (&mut *array.as_mut_ptr()).iter_mut().enumerate() {
-            core::ptr::write(value_ptr, cb(idx));
-            guard.initialized += 1;
-        }
-        mem::forget(guard);
-        array.assume_init()
-    }
-}
-
 fn try_create_array<F, T, const N: usize>(mut cb: F) -> Result<[T; N]>
 where
     F: FnMut(usize) -> Result<T>,
@@ -665,7 +645,7 @@ where
 
     #[inline]
     fn size_hint(d: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and_all(&create_array::<_, (usize, Option<usize>), N>(|_| {
+        crate::size_hint::and_all(&array::from_fn::<_, N, _>(|_| {
             <T as Arbitrary>::size_hint(d)
         }))
     }
