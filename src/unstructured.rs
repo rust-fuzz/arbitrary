@@ -674,20 +674,8 @@ impl<'a> Unstructured<'a> {
     ) -> Result<()> {
         let min = min.unwrap_or(0);
         let max = max.unwrap_or(u32::MAX);
-        assert!(min <= max);
 
-        for _ in 0..min {
-            match f(self)? {
-                ControlFlow::Continue(_) => continue,
-                ControlFlow::Break(_) => return Ok(()),
-            }
-        }
-
-        for _ in 0..(max - min) {
-            let keep_going = self.arbitrary().unwrap_or(false);
-            if !keep_going {
-                break;
-            }
+        for _ in 0..self.int_in_range(min..=max)? {
             match f(self)? {
                 ControlFlow::Continue(_) => continue,
                 ControlFlow::Break(_) => break,
