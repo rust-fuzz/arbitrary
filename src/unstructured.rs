@@ -332,7 +332,10 @@ impl<'a> Unstructured<'a> {
         while bytes_consumed < mem::size_of::<T>()
             && (delta >> T::from_usize(bytes_consumed * 8)) > T::ZERO
         {
-            let byte = bytes.next().ok_or(Error::NotEnoughData)?;
+            let byte = match bytes.next() {
+                None => break,
+                Some(b) => b,
+            };
             bytes_consumed += 1;
 
             // Combine this byte into our arbitrary integer, but avoid
@@ -864,14 +867,17 @@ mod tests {
 
     #[test]
     fn int_in_range_uses_minimal_amount_of_bytes() {
-        let mut u = Unstructured::new(&[1]);
-        u.int_in_range::<u8>(0..=u8::MAX).unwrap();
+        let mut u = Unstructured::new(&[1, 2]);
+        assert_eq!(1, u.int_in_range::<u8>(0..=u8::MAX).unwrap());
+        assert_eq!(u.len(), 1);
+
+        let mut u = Unstructured::new(&[1, 2]);
+        assert_eq!(1, u.int_in_range::<u32>(0..=u8::MAX as u32).unwrap());
+        assert_eq!(u.len(), 1);
 
         let mut u = Unstructured::new(&[1]);
-        u.int_in_range::<u32>(0..=u8::MAX as u32).unwrap();
-
-        let mut u = Unstructured::new(&[1]);
-        u.int_in_range::<u32>(0..=u8::MAX as u32 + 1).unwrap_err();
+        assert_eq!(1, u.int_in_range::<u32>(0..=u8::MAX as u32 + 1).unwrap());
+        assert!(u.is_empty());
     }
 
     #[test]
