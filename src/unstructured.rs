@@ -306,8 +306,8 @@ impl<'a> Unstructured<'a> {
     where
         T: Int,
     {
-        let start = range.start();
-        let end = range.end();
+        let start = *range.start();
+        let end = *range.end();
         assert!(
             start <= end,
             "`arbitrary::Unstructured::int_in_range` requires a non-empty range"
@@ -316,30 +316,48 @@ impl<'a> Unstructured<'a> {
         // When there is only one possible choice, don't waste any entropy from
         // the underlying data.
         if start == end {
-            return Ok((*start, 0));
+            return Ok((start, 0));
         }
 
-        let range: T::Widest = end.as_widest() - start.as_widest();
-        let mut result = T::Widest::ZERO;
-        let mut offset: usize = 0;
+        let delta = end - start;
+        debug_assert_ne!(delta, T::ZERO);
 
-        while offset < mem::size_of::<T>()
-            && (range >> T::Widest::from_usize(offset * 8)) > T::Widest::ZERO
+        // Compute an arbitrary integer offset from the start of the range. We
+        // do this by consuming `size_of(T)` bytes from the input to create an
+        // arbitrary integer and then clamping that int into our range bounds
+        // with a modulo operation.
+        let mut arbitrary_int = T::ZERO;
+        let mut bytes_consumed: usize = 0;
+
+        while bytes_consumed < mem::size_of::<T>()
+            && (delta >> T::from_usize(bytes_consumed * 8)) > T::ZERO
         {
-            let byte = bytes.next().ok_or(Error::NotEnoughData)?;
-            result = (result << 8) | T::Widest::from_u8(byte);
-            offset += 1;
+            let byte = match bytes.next() {
+                None => break,
+                Some(b) => b,
+            };
+            bytes_consumed += 1;
+
+            // Combine this byte into our arbitrary integer, but avoid
+            // overflowing the shift for `u8` and `i8`.
+            arbitrary_int = if mem::size_of::<T>() == 1 {
+                T::from_u8(byte)
+            } else {
+                (arbitrary_int << 8) | T::from_u8(byte)
+            };
         }
 
-        // Avoid division by zero.
-        if let Some(range) = range.checked_add(T::Widest::ONE) {
-            result = result % range;
-        }
+        let offset_from_start = if delta == T::MAX {
+            arbitrary_int
+        } else {
+            arbitrary_int % (delta.checked_add(T::ONE).unwrap())
+        };
 
-        Ok((
-            T::from_widest(start.as_widest().wrapping_add(result)),
-            offset,
-        ))
+        // Finally, we add `start` to our offset from `start` to get the result
+        // actual value within the range.
+        let result = start.checked_add(offset_from_start).unwrap();
+
+        Ok((result, bytes_consumed))
     }
 
     /// Choose one of the given choices.
@@ -749,6 +767,7 @@ impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryTakeRestIter<'a, Elem
 /// Don't implement this trait yourself.
 pub trait Int:
     Copy
+    + std::fmt::Debug
     + PartialOrd
     + Ord
     + ops::Sub<Self, Output = Self>
@@ -758,19 +777,13 @@ pub trait Int:
     + ops::BitOr<Self, Output = Self>
 {
     #[doc(hidden)]
-    type Widest: Int;
-
-    #[doc(hidden)]
     const ZERO: Self;
 
     #[doc(hidden)]
     const ONE: Self;
 
     #[doc(hidden)]
-    fn as_widest(self) -> Self::Widest;
-
-    #[doc(hidden)]
-    fn from_widest(w: Self::Widest) -> Self;
+    const MAX: Self;
 
     #[doc(hidden)]
     fn from_u8(b: u8) -> Self;
@@ -780,29 +793,17 @@ pub trait Int:
 
     #[doc(hidden)]
     fn checked_add(self, rhs: Self) -> Option<Self>;
-
-    #[doc(hidden)]
-    fn wrapping_add(self, rhs: Self) -> Self;
 }
 
 macro_rules! impl_int {
     ( $( $ty:ty : $widest:ty ; )* ) => {
         $(
             impl Int for $ty {
-                type Widest = $widest;
-
                 const ZERO: Self = 0;
 
                 const ONE: Self = 1;
 
-                fn as_widest(self) -> Self::Widest {
-                    self as $widest
-                }
-
-                fn from_widest(w: Self::Widest) -> Self {
-                    let x = <$ty>::max_value().as_widest();
-                    (w % x) as Self
-                }
+                const MAX: Self = Self::MAX;
 
                 fn from_u8(b: u8) -> Self {
                     b as Self
@@ -814,10 +815,6 @@ macro_rules! impl_int {
 
                 fn checked_add(self, rhs: Self) -> Option<Self> {
                     <$ty>::checked_add(self, rhs)
-                }
-
-                fn wrapping_add(self, rhs: Self) -> Self {
-                    <$ty>::wrapping_add(self, rhs)
                 }
             }
         )*
@@ -870,13 +867,75 @@ mod tests {
 
     #[test]
     fn int_in_range_uses_minimal_amount_of_bytes() {
-        let mut u = Unstructured::new(&[1]);
-        u.int_in_range::<u8>(0..=u8::MAX).unwrap();
+        let mut u = Unstructured::new(&[1, 2]);
+        assert_eq!(1, u.int_in_range::<u8>(0..=u8::MAX).unwrap());
+        assert_eq!(u.len(), 1);
+
+        let mut u = Unstructured::new(&[1, 2]);
+        assert_eq!(1, u.int_in_range::<u32>(0..=u8::MAX as u32).unwrap());
+        assert_eq!(u.len(), 1);
 
         let mut u = Unstructured::new(&[1]);
-        u.int_in_range::<u32>(0..=u8::MAX as u32).unwrap();
+        assert_eq!(1, u.int_in_range::<u32>(0..=u8::MAX as u32 + 1).unwrap());
+        assert!(u.is_empty());
+    }
 
-        let mut u = Unstructured::new(&[1]);
-        u.int_in_range::<u32>(0..=u8::MAX as u32 + 1).unwrap_err();
+    #[test]
+    fn int_in_range_in_bounds() {
+        for input in u8::MIN..=u8::MAX {
+            let input = [input];
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(1..=u8::MAX).unwrap();
+            assert_ne!(x, 0);
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(0..=u8::MAX - 1).unwrap();
+            assert_ne!(x, u8::MAX);
+        }
+    }
+
+    #[test]
+    fn int_in_range_covers_range() {
+        // Test that we generate all values within the range given to
+        // `int_in_range`.
+
+        let mut full = [false; u8::MAX as usize + 1];
+        let mut no_zero = [false; u8::MAX as usize];
+        let mut no_max = [false; u8::MAX as usize];
+        let mut narrow = [false; 10];
+
+        for input in u8::MIN..=u8::MAX {
+            let input = [input];
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(0..=u8::MAX).unwrap();
+            full[x as usize] = true;
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(1..=u8::MAX).unwrap();
+            no_zero[x as usize - 1] = true;
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(0..=u8::MAX - 1).unwrap();
+            no_max[x as usize] = true;
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(100..=109).unwrap();
+            narrow[x as usize - 100] = true;
+        }
+
+        for (i, covered) in full.iter().enumerate() {
+            assert!(covered, "full[{}] should have been generated", i);
+        }
+        for (i, covered) in no_zero.iter().enumerate() {
+            assert!(covered, "no_zero[{}] should have been generated", i);
+        }
+        for (i, covered) in no_max.iter().enumerate() {
+            assert!(covered, "no_max[{}] should have been generated", i);
+        }
+        for (i, covered) in narrow.iter().enumerate() {
+            assert!(covered, "narrow[{}] should have been generated", i);
+        }
     }
 }
