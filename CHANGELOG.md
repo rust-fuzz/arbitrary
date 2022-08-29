@@ -28,6 +28,27 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.1.4
+
+Released 2022-08-29.
+
+### Added
+
+* Implemented `Arbitrary` for `Rc<str>` and `Arc<str>`
+
+### Changed
+
+* Allow overriding the error type in `arbitrary::Result`
+* The `Unstructured::arbitrary_loop` method will consume fewer bytes of input
+  now.
+
+### Fixed
+
+* Fixed a bug where `Unstructured::int_in_range` could return out-of-range
+  integers.
+
+--------------------------------------------------------------------------------
+
 ## 1.1.3
 
 Released 2022-06-23.
