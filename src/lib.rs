@@ -48,6 +48,7 @@ use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedL
 use std::ffi::{CString, OsString};
 use std::hash::BuildHasher;
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::ops::Bound;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
@@ -715,6 +716,25 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, None)
+    }
+}
+
+impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        match u.int_in_range::<u8>(0..=3)? {
+            0 => Ok(Bound::Included(A::arbitrary(u)?)),
+            1 => Ok(Bound::Excluded(A::arbitrary(u)?)),
+            2 => Ok(Bound::Unbounded),
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        size_hint::or(
+            size_hint::and((1, Some(1)), A::size_hint(depth)),
+            (1, Some(1)),
+        )
     }
 }
 
