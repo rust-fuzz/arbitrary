@@ -896,7 +896,7 @@ mod tests {
     }
 
     #[test]
-    fn int_in_range_covers_range() {
+    fn int_in_range_covers_unsigned_range() {
         // Test that we generate all values within the range given to
         // `int_in_range`.
 
@@ -930,6 +930,52 @@ mod tests {
         }
         for (i, covered) in no_zero.iter().enumerate() {
             assert!(covered, "no_zero[{}] should have been generated", i);
+        }
+        for (i, covered) in no_max.iter().enumerate() {
+            assert!(covered, "no_max[{}] should have been generated", i);
+        }
+        for (i, covered) in narrow.iter().enumerate() {
+            assert!(covered, "narrow[{}] should have been generated", i);
+        }
+    }
+
+    #[test]
+    fn int_in_range_covers_signed_range() {
+        // Test that we generate all values within the range given to
+        // `int_in_range`.
+
+        let mut full = [false; u8::MAX as usize + 1];
+        let mut no_min = [false; u8::MAX as usize];
+        let mut no_max = [false; u8::MAX as usize];
+        let mut narrow = [false; 21];
+
+        let abs_i8_min: isize = 128;
+
+        for input in 0..=u8::MAX {
+            let input = [input];
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(i8::MIN..=i8::MAX).unwrap();
+            full[(x as isize + abs_i8_min) as usize] = true;
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(i8::MIN + 1..=i8::MAX).unwrap();
+            no_min[(x as isize + abs_i8_min - 1) as usize] = true;
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(i8::MIN..=i8::MAX - 1).unwrap();
+            no_max[(x as isize + abs_i8_min) as usize] = true;
+
+            let mut u = Unstructured::new(&input);
+            let x = u.int_in_range(-10..=10).unwrap();
+            narrow[(x as isize + 10) as usize] = true;
+        }
+
+        for (i, covered) in full.iter().enumerate() {
+            assert!(covered, "full[{}] should have been generated", i);
+        }
+        for (i, covered) in no_min.iter().enumerate() {
+            assert!(covered, "no_min[{}] should have been generated", i);
         }
         for (i, covered) in no_max.iter().enumerate() {
             assert!(covered, "no_max[{}] should have been generated", i);
