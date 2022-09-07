@@ -274,7 +274,7 @@ impl<'a> Unstructured<'a> {
     ///
     /// # Panics
     ///
-    /// Panics if `range.start >= range.end`. That is, the given range must be
+    /// Panics if `range.start > range.end`. That is, the given range must be
     /// non-empty.
     ///
     /// # Example
