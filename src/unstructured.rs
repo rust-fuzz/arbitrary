@@ -319,18 +319,24 @@ impl<'a> Unstructured<'a> {
             return Ok((start, 0));
         }
 
-        let delta = end - start;
-        debug_assert_ne!(delta, T::ZERO);
+        // From here on out we work with the unsigned representation. All of the
+        // operations performed below work out just as well whether or not `T`
+        // is a signed or unsigned integer.
+        let start = start.to_unsigned();
+        let end = end.to_unsigned();
+
+        let delta = end.wrapping_sub(start);
+        debug_assert_ne!(delta, T::Unsigned::ZERO);
 
         // Compute an arbitrary integer offset from the start of the range. We
         // do this by consuming `size_of(T)` bytes from the input to create an
         // arbitrary integer and then clamping that int into our range bounds
         // with a modulo operation.
-        let mut arbitrary_int = T::ZERO;
+        let mut arbitrary_int = T::Unsigned::ZERO;
         let mut bytes_consumed: usize = 0;
 
-        while bytes_consumed < mem::size_of::<T>()
-            && (delta >> T::from_usize(bytes_consumed * 8)) > T::ZERO
+        while (bytes_consumed < mem::size_of::<T>())
+            && (delta >> T::Unsigned::from_usize(bytes_consumed * 8)) > T::Unsigned::ZERO
         {
             let byte = match bytes.next() {
                 None => break,
@@ -341,21 +347,26 @@ impl<'a> Unstructured<'a> {
             // Combine this byte into our arbitrary integer, but avoid
             // overflowing the shift for `u8` and `i8`.
             arbitrary_int = if mem::size_of::<T>() == 1 {
-                T::from_u8(byte)
+                T::Unsigned::from_u8(byte)
             } else {
-                (arbitrary_int << 8) | T::from_u8(byte)
+                (arbitrary_int << 8) | T::Unsigned::from_u8(byte)
             };
         }
 
-        let offset_from_start = if delta == T::MAX {
+        let offset = if delta == T::Unsigned::MAX {
             arbitrary_int
         } else {
-            arbitrary_int % (delta.checked_add(T::ONE).unwrap())
+            arbitrary_int % (delta.checked_add(T::Unsigned::ONE).unwrap())
         };
 
         // Finally, we add `start` to our offset from `start` to get the result
         // actual value within the range.
-        let result = start.checked_add(offset_from_start).unwrap();
+        let result = start.wrapping_add(offset);
+
+        // And convert back to our maybe-signed representation.
+        let result = T::from_unsigned(result);
+        debug_assert!(*range.start() <= result);
+        debug_assert!(result <= *range.end());
 
         Ok((result, bytes_consumed))
     }
@@ -777,6 +788,9 @@ pub trait Int:
     + ops::BitOr<Self, Output = Self>
 {
     #[doc(hidden)]
+    type Unsigned: Int;
+
+    #[doc(hidden)]
     const ZERO: Self;
 
     #[doc(hidden)]
@@ -793,12 +807,26 @@ pub trait Int:
 
     #[doc(hidden)]
     fn checked_add(self, rhs: Self) -> Option<Self>;
+
+    #[doc(hidden)]
+    fn wrapping_add(self, rhs: Self) -> Self;
+
+    #[doc(hidden)]
+    fn wrapping_sub(self, rhs: Self) -> Self;
+
+    #[doc(hidden)]
+    fn to_unsigned(self) -> Self::Unsigned;
+
+    #[doc(hidden)]
+    fn from_unsigned(unsigned: Self::Unsigned) -> Self;
 }
 
 macro_rules! impl_int {
-    ( $( $ty:ty : $widest:ty ; )* ) => {
+    ( $( $ty:ty : $unsigned_ty: ty ; )* ) => {
         $(
             impl Int for $ty {
+                type Unsigned = $unsigned_ty;
+
                 const ZERO: Self = 0;
 
                 const ONE: Self = 1;
@@ -816,24 +844,40 @@ macro_rules! impl_int {
                 fn checked_add(self, rhs: Self) -> Option<Self> {
                     <$ty>::checked_add(self, rhs)
                 }
+
+                fn wrapping_add(self, rhs: Self) -> Self {
+                    <$ty>::wrapping_add(self, rhs)
+                }
+
+                fn wrapping_sub(self, rhs: Self) -> Self {
+                    <$ty>::wrapping_sub(self, rhs)
+                }
+
+                fn to_unsigned(self) -> Self::Unsigned {
+                    self as $unsigned_ty
+                }
+
+                fn from_unsigned(unsigned: $unsigned_ty) -> Self {
+                    unsigned as Self
+                }
             }
         )*
     }
 }
 
 impl_int! {
-    u8: u128;
-    u16: u128;
-    u32: u128;
-    u64: u128;
+    u8: u8;
+    u16: u16;
+    u32: u32;
+    u64: u64;
     u128: u128;
-    usize: u128;
-    i8: i128;
-    i16: i128;
-    i32: i128;
-    i64: i128;
-    i128: i128;
-    isize: i128;
+    usize: usize;
+    i8: u8;
+    i16: u16;
+    i32: u32;
+    i64: u64;
+    i128: u128;
+    isize: usize;
 }
 
 #[cfg(test)]
