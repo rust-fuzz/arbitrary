@@ -33,3 +33,15 @@ jobs:
     - run: rustup update
     - run: rustup component add rustfmt --toolchain stable
     - run: cargo +stable fmt --all -- --check
+  fuzz:
+    name: Run `int_in_range` fuzz target
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - run: rustup update
+    - name: "Install nightly"
+      run: rustup toolchain install nightly && rustup default nightly
+    - name: "Install `cargo-fuzz`"
+      run: cargo install cargo-fuzz
+    - name: "Fuzz for 3 minutes"
+      run: cargo fuzz run int_in_range -- -max_total_time=$((3 * 60))

@@ -37,3 +37,4 @@ path = "./tests/derive.rs"
 required-features = ["derive"]
 
 [workspace]
+members = ["./fuzz"]
