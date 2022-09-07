@@ -28,6 +28,21 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.1.5
+
+Released 2022-09-20.
+
+### Added
+
+* Implemented `Arbitrary` for `std::ops::Bound<T>`.
+
+### Fixed
+
+* Fixed a bug where `Unstructured::int_in_range` could return out-of-range
+  integers when generating arbitrary signed integers.
+
+--------------------------------------------------------------------------------
+
 ## 1.1.4
 
 Released 2022-08-29.
