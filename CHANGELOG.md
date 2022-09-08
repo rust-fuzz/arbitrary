@@ -28,6 +28,17 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## Unreleased
+
+Released 2022-09-08.
+
+### Fixed
+
+* Fixed a potential panic due to an off-by-one error in the `Arbitrary`
+  implementation for `std::ops::Bound<T>`.
+
+--------------------------------------------------------------------------------
+
 ## 1.1.5
 
 Released 2022-09-20.
