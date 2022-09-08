@@ -721,7 +721,7 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
 
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        match u.int_in_range::<u8>(0..=3)? {
+        match u.int_in_range::<u8>(0..=2)? {
             0 => Ok(Bound::Included(A::arbitrary(u)?)),
             1 => Ok(Bound::Excluded(A::arbitrary(u)?)),
             2 => Ok(Bound::Unbounded),
