@@ -856,9 +856,7 @@ impl<'a> Arbitrary<'a> for &'a str {
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
         let bytes = u.take_rest();
-        str::from_utf8(bytes)
-            .map_err(|_| Error::IncorrectFormat)
-            .map(Into::into)
+        str::from_utf8(bytes).map_err(|_| Error::IncorrectFormat)
     }
 
     #[inline]
