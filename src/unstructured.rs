@@ -596,7 +596,7 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(remaining, [1, 2, 3]);
     /// ```
     pub fn take_rest(mut self) -> &'a [u8] {
-        mem::replace(&mut self.data, &[])
+        mem::take(&mut self.data)
     }
 
     /// Provide an iterator over elements for constructing a collection
