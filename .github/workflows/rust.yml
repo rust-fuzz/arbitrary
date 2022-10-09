@@ -25,6 +25,14 @@ jobs:
       run: cargo test --verbose --all-features --all
     - name: Build Examples
       run: cargo build --examples --all-features --all
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - run: rustup update
+    - run: rustup component add clippy
+    - run: cargo clippy --all-features --workspace -- -Dclippy::all
   rustfmt:
     name: Check rustfmt
     runs-on: ubuntu-latest

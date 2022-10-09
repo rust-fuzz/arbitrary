@@ -216,7 +216,7 @@ impl<'a> Unstructured<'a> {
     {
         let byte_size = self.arbitrary_byte_size()?;
         let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
-        let elem_size = upper.unwrap_or_else(|| lower * 2);
+        let elem_size = upper.unwrap_or(lower * 2);
         let elem_size = std::cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
     }
@@ -596,7 +596,7 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(remaining, [1, 2, 3]);
     /// ```
     pub fn take_rest(mut self) -> &'a [u8] {
-        mem::replace(&mut self.data, &[])
+        mem::take(&mut self.data)
     }
 
     /// Provide an iterator over elements for constructing a collection

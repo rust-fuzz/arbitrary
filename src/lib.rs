@@ -623,7 +623,7 @@ where
         initialized: 0,
     };
     unsafe {
-        for (idx, value_ptr) in (&mut *array.as_mut_ptr()).iter_mut().enumerate() {
+        for (idx, value_ptr) in (*array.as_mut_ptr()).iter_mut().enumerate() {
             core::ptr::write(value_ptr, cb(idx)?);
             guard.initialized += 1;
         }
@@ -837,7 +837,7 @@ where
 impl<'a> Arbitrary<'a> for &'a str {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
-        match str::from_utf8(&u.peek_bytes(size).unwrap()) {
+        match str::from_utf8(u.peek_bytes(size).unwrap()) {
             Ok(s) => {
                 u.bytes(size).unwrap();
                 Ok(s)
