@@ -9,7 +9,7 @@ authors = [
     "Corey Farwell <coreyf@rwell.org>",
 ]
 categories = ["development-tools::testing"]
-edition = "2018"
+edition = "2021"
 keywords = ["arbitrary", "testing", "derive", "macro"]
 readme = "README.md"
 description = "Derives arbitrary traits"

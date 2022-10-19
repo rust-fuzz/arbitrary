@@ -231,3 +231,42 @@ fn recursive_and_empty_input() {
 
     let _ = Nat5::arbitrary(&mut Unstructured::new(&[]));
 }
+
+#[test]
+fn test_field_attributes() {
+    // A type that DOES NOT implement Arbitrary
+    #[derive(Debug)]
+    struct Weight(u8);
+
+    #[derive(Debug, Arbitrary)]
+    struct Parcel {
+        #[arbitrary(with = "arbitrary_weight")]
+        weight: Weight,
+
+        #[arbitrary(default)]
+        width: u8,
+
+        #[arbitrary(value = "2 + 2")]
+        length: u8,
+
+        height: u8,
+    }
+
+    fn arbitrary_weight(u: &mut Unstructured) -> arbitrary::Result<Weight> {
+        u.int_in_range(45..=56).map(Weight)
+    }
+
+    let parcel: Parcel = arbitrary_from(&[6, 199]);
+
+    // 45 + 6 = 51
+    assert_eq!(parcel.weight.0, 51);
+
+    // u8::default()
+    assert_eq!(parcel.width, 0);
+
+    // 2 + 2 = 4
+    assert_eq!(parcel.length, 4);
+
+    // 199 is the second byte, used by arbitrary
+    assert_eq!(parcel.height, 199);
+}

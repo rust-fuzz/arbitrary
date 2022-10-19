@@ -4,9 +4,12 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::*;
 
+mod field_attributes;
+use field_attributes::{determine_field_constructor, FieldConstructor};
+
 static ARBITRARY_LIFETIME_NAME: &str = "'arbitrary";
 
-#[proc_macro_derive(Arbitrary)]
+#[proc_macro_derive(Arbitrary, attributes(arbitrary))]
 pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(tokens as syn::DeriveInput);
     let (lifetime_without_bounds, lifetime_with_bounds) =
@@ -116,7 +119,7 @@ fn gen_arbitrary_method(
     let ident = &input.ident;
 
     let arbitrary_structlike = |fields| {
-        let arbitrary = construct(fields, |_, _| quote!(arbitrary::Arbitrary::arbitrary(u)?));
+        let arbitrary = construct(fields, |_idx, field| gen_constructor_for_field(field));
         let body = with_recursive_count_guard(recursive_count, quote! { Ok(#ident #arbitrary) });
 
         let arbitrary_take_rest = construct_take_rest(fields);
@@ -140,9 +143,7 @@ fn gen_arbitrary_method(
         Data::Enum(data) => {
             let variants = data.variants.iter().enumerate().map(|(i, variant)| {
                 let idx = i as u64;
-                let ctor = construct(&variant.fields, |_, _| {
-                    quote!(arbitrary::Arbitrary::arbitrary(u)?)
-                });
+                let ctor = construct(&variant.fields, |_, field| gen_constructor_for_field(field));
                 let variant_name = &variant.ident;
                 quote! { #idx => #ident::#variant_name #ctor }
             });
@@ -215,21 +216,45 @@ fn construct(fields: &Fields, ctor: impl Fn(usize, &Field) -> TokenStream) -> To
 }
 
 fn construct_take_rest(fields: &Fields) -> TokenStream {
-    construct(fields, |idx, _| {
-        if idx + 1 == fields.len() {
-            quote! { arbitrary::Arbitrary::arbitrary_take_rest(u)? }
-        } else {
-            quote! { arbitrary::Arbitrary::arbitrary(&mut u)? }
+    construct(fields, |idx, field| {
+        match determine_field_constructor(field) {
+            FieldConstructor::Default => quote!(Default::default()),
+            FieldConstructor::Arbitrary => {
+                if idx + 1 == fields.len() {
+                    quote! { arbitrary::Arbitrary::arbitrary_take_rest(u)? }
+                } else {
+                    quote! { arbitrary::Arbitrary::arbitrary(&mut u)? }
+                }
+            }
+            FieldConstructor::WithFunction(func_path) => quote!(#func_path(&mut u)?),
+            FieldConstructor::Value(value) => quote!(#value),
         }
     })
 }
 
 fn gen_size_hint_method(input: &DeriveInput) -> TokenStream {
     let size_hint_fields = |fields: &Fields| {
-        let tys = fields.iter().map(|f| &f.ty);
+        let hints = fields.iter().map(|f| {
+            let ty = &f.ty;
+            match determine_field_constructor(f) {
+                FieldConstructor::Default | FieldConstructor::Value(_) => {
+                    quote!((0, Some(0)))
+                }
+                FieldConstructor::Arbitrary => {
+                    quote! { <#ty as arbitrary::Arbitrary>::size_hint(depth) }
+                }
+
+                // Note that in this case it's hard to determine what size_hint must be, so size_of::<T>() is
+                // just an educated guess, although it's gonna be inaccurate for dynamically
+                // allocated types (Vec, HashMap, etc.).
+                FieldConstructor::WithFunction(_) => {
+                    quote! { (::core::mem::size_of::<#ty>(), None) }
+                }
+            }
+        });
         quote! {
             arbitrary::size_hint::and_all(&[
-                #( <#tys as arbitrary::Arbitrary>::size_hint(depth) ),*
+                #( #hints ),*
             ])
         }
     };
@@ -259,5 +284,14 @@ fn gen_size_hint_method(input: &DeriveInput) -> TokenStream {
                 }
             }
         }
+    }
+}
+
+fn gen_constructor_for_field(field: &Field) -> TokenStream {
+    match determine_field_constructor(field) {
+        FieldConstructor::Default => quote!(Default::default()),
+        FieldConstructor::Arbitrary => quote!(arbitrary::Arbitrary::arbitrary(u)?),
+        FieldConstructor::WithFunction(func_path) => quote!(#func_path(u)?),
+        FieldConstructor::Value(value) => quote!(#value),
     }
 }

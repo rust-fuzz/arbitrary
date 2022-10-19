@@ -61,6 +61,31 @@ pub struct Rgb {
 }
 ```
 
+### Customizing single fields
+
+This can be particular handy if your structure uses a type that does not implement `Arbitrary` or you want to have more customization for particular fields.
+
+```rust
+#[derive(Arbitrary)]
+pub struct Rgb {
+    // set `r` to Default::default()
+    #[arbitrary(default)]
+    pub r: u8,
+
+    // set `g` to 255
+    #[arbitrary(value = "255")]
+    pub g: u8,
+
+    // generate `b` with a custom function
+    #[arbitrary(with = "arbitrary_b")]
+    pub b: u8,
+}
+
+fn arbitrary_b(u: &mut Unstructured) -> arbitrary::Result<u8> {
+    u.int_in_range(64..=128)
+}
+```
+
 ### Implementing `Arbitrary` By Hand
 
 Alternatively, you can write an `Arbitrary` implementation by hand:
