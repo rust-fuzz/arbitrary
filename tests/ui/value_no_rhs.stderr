@@ -1,7 +1,5 @@
-error: proc-macro derive panicked
- --> tests/ui/value_no_rhs.rs:3:10
+error: Invalid syntax for #[arbitrary], `value` is missing assignment.
+ --> tests/ui/value_no_rhs.rs:5:16
   |
-3 | #[derive(Arbitrary)]
-  |          ^^^^^^^^^
-  |
-  = help: message: Invalid syntax for #[arbitrary], `value` is missing RHS.
+5 |     #[arbitrary(value)]
+  |                ^^^^^^^

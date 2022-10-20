@@ -1,4 +1,4 @@
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::quote;
 use syn::*;
 
@@ -60,10 +60,11 @@ fn parse_attribute(attr: &Attribute) -> Result<FieldConstructor> {
             t => panic!("#[{ARBITRARY_ATTRIBUTE_NAME}] must contain a group, got: {t})"),
         }
     };
-    parse_attribute_internals(group.stream())
+    parse_attribute_internals(group)
 }
 
-fn parse_attribute_internals(stream: TokenStream) -> Result<FieldConstructor> {
+fn parse_attribute_internals(group: Group) -> Result<FieldConstructor> {
+    let stream = group.stream();
     let mut tokens_iter = stream.into_iter();
     let token = tokens_iter
         .next()
@@ -71,11 +72,11 @@ fn parse_attribute_internals(stream: TokenStream) -> Result<FieldConstructor> {
     match token.to_string().as_ref() {
         "default" => Ok(FieldConstructor::Default),
         "with" => {
-            let func_path = parse_assigned_value("with", tokens_iter)?;
+            let func_path = parse_assigned_value("with", tokens_iter, group.span())?;
             Ok(FieldConstructor::With(func_path))
         }
         "value" => {
-            let value = parse_assigned_value("value", tokens_iter)?;
+            let value = parse_assigned_value("value", tokens_iter, group.span())?;
             Ok(FieldConstructor::Value(value))
         }
         _ => {
@@ -92,12 +93,19 @@ fn parse_attribute_internals(stream: TokenStream) -> Result<FieldConstructor> {
 fn parse_assigned_value(
     opt_name: &str,
     mut tokens_iter: impl Iterator<Item = TokenTree>,
+    default_span: Span,
 ) -> Result<TokenStream> {
-    let eq_sign = tokens_iter.next().unwrap_or_else(|| {
-        panic!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], `{opt_name}` is missing RHS.")
-    });
-    if eq_sign.to_string() != "=" {
-        panic!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], expected `=` after `{opt_name}`, got: `{eq_sign}`");
+    let eq_sign = tokens_iter.next().ok_or_else(|| {
+        let msg = format!(
+            "Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], `{opt_name}` is missing assignment."
+        );
+        syn::Error::new(default_span, msg)
+    })?;
+
+    if eq_sign.to_string() == "=" {
+        Ok(tokens_iter.collect())
+    } else {
+        let msg = format!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], expected `=` after `{opt_name}`, got: `{eq_sign}`");
+        Err(syn::Error::new(eq_sign.span(), msg))
     }
-    Ok(tokens_iter.collect())
 }

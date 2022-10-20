@@ -1,7 +1,5 @@
-error: proc-macro derive panicked
- --> tests/ui/with_no_rhs.rs:3:10
+error: Invalid syntax for #[arbitrary], `with` is missing assignment.
+ --> tests/ui/with_no_rhs.rs:5:16
   |
-3 | #[derive(Arbitrary)]
-  |          ^^^^^^^^^
-  |
-  = help: message: Invalid syntax for #[arbitrary], `with` is missing RHS.
+5 |     #[arbitrary(with)]
+  |                ^^^^^^
