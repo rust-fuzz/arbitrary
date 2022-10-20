@@ -28,13 +28,20 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
-## Unreleased
+## 1.2.0
 
-Released 2022-09-08.
+Released 2022-10-20.
 
 ### Added
 
-* Support custom arbitrary implementation for fields on derive. [#129](https://github.com/rust-fuzz/arbitrary/pull/129)
+* Support custom arbitrary implementation for fields on
+  derive. [#129](https://github.com/rust-fuzz/arbitrary/pull/129)
+
+--------------------------------------------------------------------------------
+
+## 1.1.6
+
+Released 2022-09-08.
 
 ### Fixed
 
