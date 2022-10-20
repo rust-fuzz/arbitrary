@@ -1,7 +1,5 @@
-error: proc-macro derive panicked
- --> tests/ui/unknown_attribute_with_value.rs:3:10
+error: Unknown option for #[arbitrary]: `unknown_attr`
+ --> tests/ui/unknown_attribute_with_value.rs:5:17
   |
-3 | #[derive(Arbitrary)]
-  |          ^^^^^^^^^
-  |
-  = help: message: Unknown option for #[arbitrary]: `unknown_attr`
+5 |     #[arbitrary(unknown_attr = 255)]
+  |                 ^^^^^^^^^^^^

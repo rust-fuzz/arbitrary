@@ -78,7 +78,10 @@ fn parse_attribute_internals(stream: TokenStream) -> Result<FieldConstructor> {
             let value = parse_assigned_value("value", tokens_iter)?;
             Ok(FieldConstructor::Value(value))
         }
-        _ => panic!("Unknown option for #[{ARBITRARY_ATTRIBUTE_NAME}]: `{token}`"),
+        _ => {
+            let msg = format!("Unknown option for #[{ARBITRARY_ATTRIBUTE_NAME}]: `{token}`");
+            Err(syn::Error::new(token.span(), msg))
+        }
     }
 }
 
