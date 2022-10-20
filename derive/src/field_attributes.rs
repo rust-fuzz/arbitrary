@@ -1,4 +1,4 @@
-use proc_macro2::{Literal, TokenStream, TokenTree};
+use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
 use syn::*;
 
@@ -81,30 +81,5 @@ fn parse_assigned_value(mut tokens_iter: impl Iterator<Item = TokenTree>) -> Tok
     if eq_sign.to_string() != "=" {
         panic!("Invalid syntax for {ARBITRARY_ATTRIBUTE_NAME}() attribute");
     }
-    let lit_token = tokens_iter
-        .next()
-        .unwrap_or_else(|| panic!("Invalid syntax for {ARBITRARY_ATTRIBUTE_NAME}() attribute"));
-    let value = unwrap_token_as_string_literal(lit_token);
-    value.parse().unwrap()
-}
-
-fn unwrap_token_as_string_literal(token: TokenTree) -> String {
-    let lit = unwrap_token_as_literal(token);
-    literal_to_string(lit)
-}
-
-fn literal_to_string(lit: Literal) -> String {
-    let value = lit.to_string();
-    if value.starts_with('"') && value.ends_with('"') {
-        // Trim the first and the last chars (double quotes)
-        return value[1..(value.len() - 1)].to_string();
-    }
-    panic!("{ARBITRARY_ATTRIBUTE_NAME}() expected an attribute to be a string, but got: {value}",);
-}
-
-fn unwrap_token_as_literal(token: TokenTree) -> Literal {
-    match token {
-        TokenTree::Literal(lit) => lit,
-        something => panic!("{ARBITRARY_ATTRIBUTE_NAME}() expected a literal, got: {something}"),
-    }
+    tokens_iter.collect()
 }

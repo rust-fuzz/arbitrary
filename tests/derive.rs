@@ -240,13 +240,13 @@ fn test_field_attributes() {
 
     #[derive(Debug, Arbitrary)]
     struct Parcel {
-        #[arbitrary(with = "arbitrary_weight")]
+        #[arbitrary(with = arbitrary_weight)]
         weight: Weight,
 
         #[arbitrary(default)]
         width: u8,
 
-        #[arbitrary(value = "2 + 2")]
+        #[arbitrary(value = 2 + 2)]
         length: u8,
 
         height: u8,
