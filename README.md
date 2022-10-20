@@ -61,7 +61,7 @@ pub struct Rgb {
 }
 ```
 
-### Customizing single fields
+#### Customizing single fields
 
 This can be particular handy if your structure uses a type that does not implement `Arbitrary` or you want to have more customization for particular fields.
 
@@ -73,11 +73,15 @@ pub struct Rgb {
     pub r: u8,
 
     // set `g` to 255
-    #[arbitrary(value = "255")]
+    #[arbitrary(value = 255)]
     pub g: u8,
 
-    // generate `b` with a custom function
-    #[arbitrary(with = "arbitrary_b")]
+    // Generate `b` with a custom function of type
+    //
+    //    fn(&mut Unstructured) -> arbitrary::Result<T>
+    //
+    // where `T` is the field's type.
+    #[arbitrary(with = arbitrary_b)]
     pub b: u8,
 }
 
