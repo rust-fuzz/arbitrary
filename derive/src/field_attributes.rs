@@ -30,11 +30,22 @@ pub fn determine_field_constructor(field: &Field) -> FieldConstructor {
 }
 
 fn fetch_attr_from_field(field: &Field) -> Option<&Attribute> {
-    field.attrs.iter().find(|a| {
-        let path = &a.path;
-        let name = quote!(#path).to_string();
-        name == ARBITRARY_ATTRIBUTE_NAME
-    })
+    let found_attributes: Vec<_> = field
+        .attrs
+        .iter()
+        .filter(|a| {
+            let path = &a.path;
+            let name = quote!(#path).to_string();
+            name == ARBITRARY_ATTRIBUTE_NAME
+        })
+        .collect();
+    if found_attributes.len() > 1 {
+        let name = field.ident.as_ref().unwrap();
+        panic!(
+            "Multiple conflicting #[{ARBITRARY_ATTRIBUTE_NAME}] attributes found on field `{name}`"
+        );
+    }
+    found_attributes.into_iter().next()
 }
 
 fn parse_attribute(attr: &Attribute) -> FieldConstructor {
@@ -42,10 +53,10 @@ fn parse_attribute(attr: &Attribute) -> FieldConstructor {
         let mut tokens_iter = attr.clone().tokens.into_iter();
         let token = tokens_iter
             .next()
-            .unwrap_or_else(|| panic!("{ARBITRARY_ATTRIBUTE_NAME} attribute cannot be empty."));
+            .unwrap_or_else(|| panic!("#[{ARBITRARY_ATTRIBUTE_NAME}] cannot be empty."));
         match token {
             TokenTree::Group(g) => g,
-            t => panic!("{ARBITRARY_ATTRIBUTE_NAME} must contain a group, got: {t})"),
+            t => panic!("#[{ARBITRARY_ATTRIBUTE_NAME}] must contain a group, got: {t})"),
         }
     };
     parse_attribute_internals(group.stream())
@@ -55,31 +66,34 @@ fn parse_attribute_internals(stream: TokenStream) -> FieldConstructor {
     let mut tokens_iter = stream.into_iter();
     let token = tokens_iter
         .next()
-        .unwrap_or_else(|| panic!("{ARBITRARY_ATTRIBUTE_NAME} attribute cannot be empty."));
+        .unwrap_or_else(|| panic!("#[{ARBITRARY_ATTRIBUTE_NAME}] cannot be empty."));
     match token.to_string().as_ref() {
         "default" => FieldConstructor::Default,
         "with" => {
-            let func_path = parse_assigned_value(tokens_iter);
+            let func_path = parse_assigned_value("with", tokens_iter);
             FieldConstructor::WithFunction(func_path)
         }
         "value" => {
-            let value = parse_assigned_value(tokens_iter);
+            let value = parse_assigned_value("value", tokens_iter);
             FieldConstructor::Value(value)
         }
-        _ => panic!("Unknown options for {ARBITRARY_ATTRIBUTE_NAME}: {token}"),
+        _ => panic!("Unknown option for #[{ARBITRARY_ATTRIBUTE_NAME}]: `{token}`"),
     }
 }
 
 // Input:
-//     = "2 + 2"
+//     = 2 + 2
 // Output:
 //     2 + 2
-fn parse_assigned_value(mut tokens_iter: impl Iterator<Item = TokenTree>) -> TokenStream {
-    let eq_sign = tokens_iter
-        .next()
-        .unwrap_or_else(|| panic!("Invalid syntax for {ARBITRARY_ATTRIBUTE_NAME}() attribute"));
+fn parse_assigned_value(
+    opt_name: &str,
+    mut tokens_iter: impl Iterator<Item = TokenTree>,
+) -> TokenStream {
+    let eq_sign = tokens_iter.next().unwrap_or_else(|| {
+        panic!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], `{opt_name}` is missing RHS.")
+    });
     if eq_sign.to_string() != "=" {
-        panic!("Invalid syntax for {ARBITRARY_ATTRIBUTE_NAME}() attribute");
+        panic!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], expected `=` after `{opt_name}`, got: `{eq_sign}`");
     }
     tokens_iter.collect()
 }

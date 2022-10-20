@@ -1,0 +1,7 @@
+error: proc-macro derive panicked
+ --> tests/ui/multiple_arbitrary.rs:3:10
+  |
+3 | #[derive(Arbitrary)]
+  |          ^^^^^^^^^
+  |
+  = help: message: Multiple conflicting #[arbitrary] attributes found on field `x`
