@@ -1,5 +1,0 @@
-error: Unknown option for #[arbitrary]: `unknown_attr`
- --> tests/ui/unknown_attribute_with_value.rs:5:17
-  |
-5 |     #[arbitrary(unknown_attr = 255)]
-  |                 ^^^^^^^^^^^^

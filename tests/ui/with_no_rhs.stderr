@@ -1,5 +1,0 @@
-error: Invalid syntax for #[arbitrary], `with` is missing assignment.
- --> tests/ui/with_no_rhs.rs:5:16
-  |
-5 |     #[arbitrary(with)]
-  |                ^^^^^^

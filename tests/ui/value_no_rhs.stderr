@@ -1,5 +1,0 @@
-error: Invalid syntax for #[arbitrary], `value` is missing assignment.
- --> tests/ui/value_no_rhs.rs:5:16
-  |
-5 |     #[arbitrary(value)]
-  |                ^^^^^^^

@@ -1,5 +1,0 @@
-error: Multiple conflicting #[arbitrary] attributes found on field `x`
- --> tests/ui/multiple_arbitrary.rs:5:5
-  |
-5 |     #[arbitrary(value = 2)]
-  |     ^

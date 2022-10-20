@@ -22,9 +22,6 @@ rust-version = "1.63.0"
 [dependencies]
 derive_arbitrary = { version = "1.1.6", path = "./derive", optional = true }
 
-[dev-dependencies]
-trybuild = { version = "1.0.71", features = ["diff"] }
-
 [features]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
