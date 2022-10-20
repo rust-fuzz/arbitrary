@@ -1292,3 +1292,51 @@ mod test {
         assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
     }
 }
+
+/// Multiple conflicting arbitrary attributes are used on the same field:
+/// ```compile_fail
+/// #[derive(::arbitrary::Arbitrary)]
+/// struct Point {
+///     #[arbitrary(value = 2)]
+///     #[arbitrary(value = 2)]
+///     x: i32,
+/// }
+/// ```
+///
+/// An unknown attribute:
+/// ```compile_fail
+/// #[derive(::arbitrary::Arbitrary)]
+/// struct Point {
+///     #[arbitrary(unknown_attr)]
+///     x: i32,
+/// }
+/// ```
+///
+/// An unknown attribute with a value:
+/// ```compile_fail
+/// #[derive(::arbitrary::Arbitrary)]
+/// struct Point {
+///     #[arbitrary(unknown_attr = 13)]
+///     x: i32,
+/// }
+/// ```
+///
+/// `value` without RHS:
+/// ```compile_fail
+/// #[derive(::arbitrary::Arbitrary)]
+/// struct Point {
+///     #[arbitrary(value)]
+///     x: i32,
+/// }
+/// ```
+///
+/// `with` without RHS:
+/// ```compile_fail
+/// #[derive(::arbitrary::Arbitrary)]
+/// struct Point {
+///     #[arbitrary(with)]
+///     x: i32,
+/// }
+/// ```
+#[cfg(all(doctest, feature = "derive"))]
+pub struct CompileFailTests;
