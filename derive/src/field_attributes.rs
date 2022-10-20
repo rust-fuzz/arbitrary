@@ -21,15 +21,16 @@ pub enum FieldConstructor {
     Value(TokenStream),
 }
 
-pub fn determine_field_constructor(field: &Field) -> FieldConstructor {
-    let opt_attr = fetch_attr_from_field(field);
-    match opt_attr {
-        Some(attr) => parse_attribute(attr),
+pub fn determine_field_constructor(field: &Field) -> Result<FieldConstructor> {
+    let opt_attr = fetch_attr_from_field(field)?;
+    let ctor = match opt_attr {
+        Some(attr) => parse_attribute(attr)?,
         None => FieldConstructor::Arbitrary,
-    }
+    };
+    Ok(ctor)
 }
 
-fn fetch_attr_from_field(field: &Field) -> Option<&Attribute> {
+fn fetch_attr_from_field(field: &Field) -> Result<Option<&Attribute>> {
     let found_attributes: Vec<_> = field
         .attrs
         .iter()
@@ -45,10 +46,10 @@ fn fetch_attr_from_field(field: &Field) -> Option<&Attribute> {
             "Multiple conflicting #[{ARBITRARY_ATTRIBUTE_NAME}] attributes found on field `{name}`"
         );
     }
-    found_attributes.into_iter().next()
+    Ok(found_attributes.into_iter().next())
 }
 
-fn parse_attribute(attr: &Attribute) -> FieldConstructor {
+fn parse_attribute(attr: &Attribute) -> Result<FieldConstructor> {
     let group = {
         let mut tokens_iter = attr.clone().tokens.into_iter();
         let token = tokens_iter
@@ -62,20 +63,20 @@ fn parse_attribute(attr: &Attribute) -> FieldConstructor {
     parse_attribute_internals(group.stream())
 }
 
-fn parse_attribute_internals(stream: TokenStream) -> FieldConstructor {
+fn parse_attribute_internals(stream: TokenStream) -> Result<FieldConstructor> {
     let mut tokens_iter = stream.into_iter();
     let token = tokens_iter
         .next()
         .unwrap_or_else(|| panic!("#[{ARBITRARY_ATTRIBUTE_NAME}] cannot be empty."));
     match token.to_string().as_ref() {
-        "default" => FieldConstructor::Default,
+        "default" => Ok(FieldConstructor::Default),
         "with" => {
-            let func_path = parse_assigned_value("with", tokens_iter);
-            FieldConstructor::With(func_path)
+            let func_path = parse_assigned_value("with", tokens_iter)?;
+            Ok(FieldConstructor::With(func_path))
         }
         "value" => {
-            let value = parse_assigned_value("value", tokens_iter);
-            FieldConstructor::Value(value)
+            let value = parse_assigned_value("value", tokens_iter)?;
+            Ok(FieldConstructor::Value(value))
         }
         _ => panic!("Unknown option for #[{ARBITRARY_ATTRIBUTE_NAME}]: `{token}`"),
     }
@@ -88,12 +89,12 @@ fn parse_attribute_internals(stream: TokenStream) -> FieldConstructor {
 fn parse_assigned_value(
     opt_name: &str,
     mut tokens_iter: impl Iterator<Item = TokenTree>,
-) -> TokenStream {
+) -> Result<TokenStream> {
     let eq_sign = tokens_iter.next().unwrap_or_else(|| {
         panic!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], `{opt_name}` is missing RHS.")
     });
     if eq_sign.to_string() != "=" {
         panic!("Invalid syntax for #[{ARBITRARY_ATTRIBUTE_NAME}], expected `=` after `{opt_name}`, got: `{eq_sign}`");
     }
-    tokens_iter.collect()
+    Ok(tokens_iter.collect())
 }
