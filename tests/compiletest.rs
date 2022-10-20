@@ -1,3 +1,4 @@
+#[cfg(feature = "derive")]
 #[test]
 fn ui() {
     let t = trybuild::TestCases::new();
