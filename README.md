@@ -67,7 +67,7 @@ This can be particular handy if your structure uses a type that does not impleme
 
 ```rust
 #[derive(Arbitrary)]
-pub struct Rgb {
+pub struct Rgba {
     // set `r` to Default::default()
     #[arbitrary(default)]
     pub r: u8,
@@ -83,6 +83,10 @@ pub struct Rgb {
     // where `T` is the field's type.
     #[arbitrary(with = arbitrary_b)]
     pub b: u8,
+
+    // Generate `a` with a custom closure (shortuct to avoid a custom funciton)
+    #[arbitrary(with = |u: &mut Unstructured| u.int_in_range(0..=64))]
+    pub a: u8,
 }
 
 fn arbitrary_b(u: &mut Unstructured) -> arbitrary::Result<u8> {

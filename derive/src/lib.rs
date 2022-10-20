@@ -226,7 +226,7 @@ fn construct_take_rest(fields: &Fields) -> TokenStream {
                     quote! { arbitrary::Arbitrary::arbitrary(&mut u)? }
                 }
             }
-            FieldConstructor::WithFunction(func_path) => quote!(#func_path(&mut u)?),
+            FieldConstructor::With(function_or_closure) => quote!((#function_or_closure)(&mut u)?),
             FieldConstructor::Value(value) => quote!(#value),
         }
     })
@@ -247,7 +247,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> TokenStream {
                 // Note that in this case it's hard to determine what size_hint must be, so size_of::<T>() is
                 // just an educated guess, although it's gonna be inaccurate for dynamically
                 // allocated types (Vec, HashMap, etc.).
-                FieldConstructor::WithFunction(_) => {
+                FieldConstructor::With(_) => {
                     quote! { (::core::mem::size_of::<#ty>(), None) }
                 }
             }
@@ -291,7 +291,7 @@ fn gen_constructor_for_field(field: &Field) -> TokenStream {
     match determine_field_constructor(field) {
         FieldConstructor::Default => quote!(Default::default()),
         FieldConstructor::Arbitrary => quote!(arbitrary::Arbitrary::arbitrary(u)?),
-        FieldConstructor::WithFunction(func_path) => quote!(#func_path(u)?),
+        FieldConstructor::With(function_or_closure) => quote!((#function_or_closure)(u)?),
         FieldConstructor::Value(value) => quote!(#value),
     }
 }

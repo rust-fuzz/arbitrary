@@ -14,8 +14,8 @@ pub enum FieldConstructor {
     /// Places `Default::default()` as a field value.
     Default,
 
-    /// Use custom function to generate a value for a field.
-    WithFunction(TokenStream),
+    /// Use custom function or closure to generate a value for a field.
+    With(TokenStream),
 
     /// Set a field always to the given value.
     Value(TokenStream),
@@ -71,7 +71,7 @@ fn parse_attribute_internals(stream: TokenStream) -> FieldConstructor {
         "default" => FieldConstructor::Default,
         "with" => {
             let func_path = parse_assigned_value("with", tokens_iter);
-            FieldConstructor::WithFunction(func_path)
+            FieldConstructor::With(func_path)
         }
         "value" => {
             let value = parse_assigned_value("value", tokens_iter);
