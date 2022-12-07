@@ -20,7 +20,7 @@ Released YYYY-MM-DD.
 
 ### Fixed
 
-* TODO (or remove section if none)
+* (Included in `arbitrary_derive`  1.2.1) Fixed bug in Derive macro around `no_std` path uses [#131](https://github.com/rust-fuzz/arbitrary/pull/131)
 
 ### Security
 
