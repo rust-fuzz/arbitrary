@@ -28,6 +28,24 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.2.2
+
+Released 2023-01-03.
+
+### Fixed
+
+* Ensured that `arbitrary` and `derive_arbitrary` versions are synced up so that
+  they don't, e.g., emit generated code that depends on newer versions of
+  `arbitrary` than the one currently in
+  use. [#134](https://github.com/rust-fuzz/arbitrary/issues/134)
+
+## 1.2.1
+
+### Fixed
+
+* Fixed an issue where `std::thread_local!` macro invocations in derive code
+  were not fully prefixed, causing confusing build errors in certain situations.
+
 ## 1.2.0
 
 Released 2022-10-20.
