@@ -28,6 +28,16 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.2.3
+
+Released 2023-01-20.
+
+### Fixed
+
+* The `derive(Arbitrary)` will now annotate the generated `impl`s with a `#[automatically_derived]`
+  attribute to indicate to e.g. clippy that lints should not fire for the code within the derived
+  implementation.
+
 ## 1.2.2
 
 Released 2023-01-03.
