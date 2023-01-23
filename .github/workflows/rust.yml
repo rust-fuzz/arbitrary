@@ -7,7 +7,7 @@ jobs:
     name: Vanilla Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: rustup update
     - name: Build
       run: cargo build --verbose --all
@@ -17,7 +17,7 @@ jobs:
     name: All Features Enabled Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: rustup update
     - name: Build
       run: cargo build --verbose --all-features --all
@@ -29,7 +29,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: rustup update
     - run: rustup component add clippy
     - run: cargo clippy --all-features --workspace -- -Dclippy::all
@@ -37,7 +37,7 @@ jobs:
     name: Check rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: rustup update
     - run: rustup component add rustfmt --toolchain stable
     - run: cargo +stable fmt --all -- --check
@@ -45,7 +45,7 @@ jobs:
     name: Run `int_in_range` fuzz target
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: rustup update
     - name: "Install nightly"
       run: rustup toolchain install nightly && rustup default nightly
