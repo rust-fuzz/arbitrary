@@ -6,6 +6,19 @@ use syn::{
 };
 
 pub struct ContainerAttributes {
+    /// Specify type bounds to be applied to the derived `Arbitrary` implementation instead of the
+    /// default inferred bounds.
+    ///
+    /// ```
+    /// #[arbitrary(bound = "T: Default, U: Debug")]
+    /// ```
+    ///
+    /// Multiple attributes will be combined as long as they don't conflict, e.g.
+    ///
+    /// ```
+    /// #[arbitrary(bound = "T: Default")]
+    /// #[arbitrary(bound = "U: Default")]
+    /// ```
     pub bounds: Option<Vec<Punctuated<TypeParam, Token![,]>>>,
 }
 

@@ -92,7 +92,7 @@ fn apply_trait_bounds(
     lifetime: LifetimeDef,
     container_attrs: &ContainerAttributes,
 ) -> Generics {
-    // If a user-supplied bounds exist, use them for *every* type parameter.
+    // If user-supplied bounds exist, apply them to their matching type parameters.
     if let Some(config_bounds) = &container_attrs.bounds {
         let mut config_bounds_applied = 0;
         for param in generics.params.iter_mut() {
@@ -105,7 +105,8 @@ fn apply_trait_bounds(
                     *type_param = replacement.clone();
                     config_bounds_applied += 1;
                 } else {
-                    // This deletes the type's bounds, mimicking serde.
+                    // If no user-supplied bounds exist for this type, delete the original bounds.
+                    // This mimics serde.
                     type_param.bounds = Default::default();
                     type_param.default = None;
                 }
