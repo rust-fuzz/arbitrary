@@ -21,7 +21,7 @@ pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStr
 }
 
 fn expand_derive_arbitrary(input: syn::DeriveInput) -> Result<TokenStream> {
-    let container_attrs = ContainerAttributes::from_derive_input(&input).unwrap();
+    let container_attrs = ContainerAttributes::from_derive_input(&input)?;
 
     let (lifetime_without_bounds, lifetime_with_bounds) =
         build_arbitrary_lifetime(input.generics.clone());
@@ -41,7 +41,7 @@ fn expand_derive_arbitrary(input: syn::DeriveInput) -> Result<TokenStream> {
         input.generics,
         lifetime_without_bounds.clone(),
         &container_attrs,
-    );
+    )?;
 
     // Build ImplGeneric with a lifetime (https://github.com/dtolnay/syn/issues/90)
     let mut generics_with_lifetime = generics.clone();
@@ -91,7 +91,7 @@ fn apply_trait_bounds(
     mut generics: Generics,
     lifetime: LifetimeDef,
     container_attrs: &ContainerAttributes,
-) -> Generics {
+) -> Result<Generics> {
     // If user-supplied bounds exist, apply them to their matching type parameters.
     if let Some(config_bounds) = &container_attrs.bounds {
         let mut config_bounds_applied = 0;
@@ -117,15 +117,18 @@ fn apply_trait_bounds(
             .map(|bounds| bounds.len())
             .sum::<usize>();
         if config_bounds_applied != config_bounds_supplied {
-            panic!(
-                "too many bounds supplied, only {} out of {} are applicable",
-                config_bounds_applied, config_bounds_supplied,
-            );
+            return Err(Error::new(
+                Span::call_site(),
+                format!(
+                    "invalid `{}` attribute. too many bounds, only {} out of {} are applicable",
+                    ARBITRARY_ATTRIBUTE_NAME, config_bounds_applied, config_bounds_supplied,
+                ),
+            ));
         }
-        generics
+        Ok(generics)
     } else {
         // Otherwise, inject a `T: Arbitrary` bound for every parameter.
-        add_trait_bounds(generics, lifetime)
+        Ok(add_trait_bounds(generics, lifetime))
     }
 }
 

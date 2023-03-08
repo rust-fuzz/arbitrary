@@ -1,5 +1,4 @@
 use crate::ARBITRARY_ATTRIBUTE_NAME;
-use quote::ToTokens;
 use syn::{
     parse::Error, punctuated::Punctuated, DeriveInput, Lit, Meta, MetaNameValue, NestedMeta, Token,
     TypeParam,
@@ -33,10 +32,15 @@ impl ContainerAttributes {
 
             let meta_list = match attr.parse_meta()? {
                 Meta::List(l) => l,
-                _ => panic!(
-                    "invalid `{}` attribute. expected list",
-                    ARBITRARY_ATTRIBUTE_NAME
-                ),
+                _ => {
+                    return Err(Error::new_spanned(
+                        attr,
+                        format!(
+                            "invalid `{}` attribute. expected list",
+                            ARBITRARY_ATTRIBUTE_NAME
+                        ),
+                    ))
+                }
             };
 
             for nested_meta in meta_list.nested.iter() {
@@ -50,11 +54,15 @@ impl ContainerAttributes {
                             .get_or_insert_with(Vec::new)
                             .push(bound_str_lit.parse_with(Punctuated::parse_terminated)?);
                     }
-                    _ => panic!(
-                        "invalid value for `{}` attribute. expected `bound = \"..\"`, got: `{}`",
-                        ARBITRARY_ATTRIBUTE_NAME,
-                        nested_meta.to_token_stream()
-                    ),
+                    _ => {
+                        return Err(Error::new_spanned(
+                            attr,
+                            format!(
+                                "invalid `{}` attribute. expected `bound = \"..\"`",
+                                ARBITRARY_ATTRIBUTE_NAME,
+                            ),
+                        ))
+                    }
                 }
             }
         }
