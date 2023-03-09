@@ -8,13 +8,13 @@ pub struct ContainerAttributes {
     /// Specify type bounds to be applied to the derived `Arbitrary` implementation instead of the
     /// default inferred bounds.
     ///
-    /// ```
+    /// ```ignore
     /// #[arbitrary(bound = "T: Default, U: Debug")]
     /// ```
     ///
     /// Multiple attributes will be combined as long as they don't conflict, e.g.
     ///
-    /// ```
+    /// ```ignore
     /// #[arbitrary(bound = "T: Default")]
     /// #[arbitrary(bound = "U: Default")]
     /// ```
