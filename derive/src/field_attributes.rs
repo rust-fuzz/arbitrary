@@ -1,9 +1,7 @@
+use crate::ARBITRARY_ATTRIBUTE_NAME;
 use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::quote;
 use syn::{spanned::Spanned, *};
-
-/// Used to filter out necessary field attribute and within error messages.
-static ARBITRARY_ATTRIBUTE_NAME: &str = "arbitrary";
 
 /// Determines how a value for a field should be constructed.
 #[cfg_attr(test, derive(Debug))]
