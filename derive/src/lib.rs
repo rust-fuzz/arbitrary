@@ -71,9 +71,9 @@ fn expand_derive_arbitrary(input: syn::DeriveInput) -> Result<TokenStream> {
 
 // Returns: (lifetime without bounds, lifetime with bounds)
 // Example: ("'arbitrary", "'arbitrary: 'a + 'b")
-fn build_arbitrary_lifetime(generics: Generics) -> (LifetimeDef, LifetimeDef) {
+fn build_arbitrary_lifetime(generics: Generics) -> (LifetimeParam, LifetimeParam) {
     let lifetime_without_bounds =
-        LifetimeDef::new(Lifetime::new(ARBITRARY_LIFETIME_NAME, Span::call_site()));
+        LifetimeParam::new(Lifetime::new(ARBITRARY_LIFETIME_NAME, Span::call_site()));
     let mut lifetime_with_bounds = lifetime_without_bounds.clone();
 
     for param in generics.params.iter() {
@@ -89,7 +89,7 @@ fn build_arbitrary_lifetime(generics: Generics) -> (LifetimeDef, LifetimeDef) {
 
 fn apply_trait_bounds(
     mut generics: Generics,
-    lifetime: LifetimeDef,
+    lifetime: LifetimeParam,
     container_attrs: &ContainerAttributes,
 ) -> Result<Generics> {
     // If user-supplied bounds exist, apply them to their matching type parameters.
@@ -133,7 +133,7 @@ fn apply_trait_bounds(
 }
 
 // Add a bound `T: Arbitrary` to every type parameter T.
-fn add_trait_bounds(mut generics: Generics, lifetime: LifetimeDef) -> Generics {
+fn add_trait_bounds(mut generics: Generics, lifetime: LifetimeParam) -> Generics {
     for param in generics.params.iter_mut() {
         if let GenericParam::Type(type_param) = param {
             type_param
@@ -174,13 +174,13 @@ fn with_recursive_count_guard(
 
 fn gen_arbitrary_method(
     input: &DeriveInput,
-    lifetime: LifetimeDef,
+    lifetime: LifetimeParam,
     recursive_count: &syn::Ident,
 ) -> Result<TokenStream> {
     fn arbitrary_structlike(
         fields: &Fields,
         ident: &syn::Ident,
-        lifetime: LifetimeDef,
+        lifetime: LifetimeParam,
         recursive_count: &syn::Ident,
     ) -> Result<TokenStream> {
         let arbitrary = construct(fields, |_idx, field| gen_constructor_for_field(field))?;
