@@ -1,7 +1,7 @@
 use crate::ARBITRARY_ATTRIBUTE_NAME;
 use syn::{
-    parse::Error, punctuated::Punctuated, DeriveInput, Lit, Meta, MetaNameValue, NestedMeta, Token,
-    TypeParam,
+    parse::Error, punctuated::Punctuated, DeriveInput, Expr, ExprLit, Lit, Meta, MetaNameValue,
+    Token, TypeParam,
 };
 
 pub struct ContainerAttributes {
@@ -26,12 +26,12 @@ impl ContainerAttributes {
         let mut bounds = None;
 
         for attr in &derive_input.attrs {
-            if !attr.path.is_ident(ARBITRARY_ATTRIBUTE_NAME) {
+            if !attr.path().is_ident(ARBITRARY_ATTRIBUTE_NAME) {
                 continue;
             }
 
-            let meta_list = match attr.parse_meta()? {
-                Meta::List(l) => l,
+            let meta_list = match attr.meta {
+                Meta::List(ref l) => l,
                 _ => {
                     return Err(Error::new_spanned(
                         attr,
@@ -43,13 +43,19 @@ impl ContainerAttributes {
                 }
             };
 
-            for nested_meta in meta_list.nested.iter() {
+            for nested_meta in
+                meta_list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?
+            {
                 match nested_meta {
-                    NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                    Meta::NameValue(MetaNameValue {
                         path,
-                        lit: Lit::Str(bound_str_lit),
+                        value:
+                            Expr::Lit(ExprLit {
+                                lit: Lit::Str(bound_str_lit),
+                                ..
+                            }),
                         ..
-                    })) if path.is_ident("bound") => {
+                    }) if path.is_ident("bound") => {
                         bounds
                             .get_or_insert_with(Vec::new)
                             .push(bound_str_lit.parse_with(Punctuated::parse_terminated)?);
