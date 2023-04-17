@@ -85,7 +85,7 @@ Released 2022-10-20.
 
 ## 1.1.6
 
-Released 2022-09-08.
+Released 2022-09-20.
 
 ### Fixed
 
@@ -96,7 +96,7 @@ Released 2022-09-08.
 
 ## 1.1.5
 
-Released 2022-09-20.
+Released 2022-09-08.
 
 ### Added
 
