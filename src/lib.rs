@@ -834,29 +834,33 @@ where
     }
 }
 
+fn arbitrary_str<'a>(u: &mut Unstructured<'a>, size: usize) -> Result<&'a str> {
+    match str::from_utf8(u.peek_bytes(size).unwrap()) {
+        Ok(s) => {
+            u.bytes(size).unwrap();
+            Ok(s)
+        }
+        Err(e) => {
+            let i = e.valid_up_to();
+            let valid = u.bytes(i).unwrap();
+            let s = unsafe {
+                debug_assert!(str::from_utf8(valid).is_ok());
+                str::from_utf8_unchecked(valid)
+            };
+            Ok(s)
+        }
+    }
+}
+
 impl<'a> Arbitrary<'a> for &'a str {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let size = u.arbitrary_len::<u8>()?;
-        match str::from_utf8(u.peek_bytes(size).unwrap()) {
-            Ok(s) => {
-                u.bytes(size).unwrap();
-                Ok(s)
-            }
-            Err(e) => {
-                let i = e.valid_up_to();
-                let valid = u.bytes(i).unwrap();
-                let s = unsafe {
-                    debug_assert!(str::from_utf8(valid).is_ok());
-                    str::from_utf8_unchecked(valid)
-                };
-                Ok(s)
-            }
-        }
+        arbitrary_str(u, size)
     }
 
-    fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
-        let bytes = u.take_rest();
-        str::from_utf8(bytes).map_err(|_| Error::IncorrectFormat)
+    fn arbitrary_take_rest(mut u: Unstructured<'a>) -> Result<Self> {
+        let size = u.len();
+        arbitrary_str(&mut u, size)
     }
 
     #[inline]
@@ -1255,6 +1259,7 @@ mod test {
 
     #[test]
     fn arbitrary_take_rest() {
+        // Basic examples
         let x = [1, 2, 3, 4];
         assert_eq!(
             checked_arbitrary_take_rest::<&[u8]>(Unstructured::new(&x)).unwrap(),
@@ -1273,6 +1278,7 @@ mod test {
             "\x01\x02\x03\x04"
         );
 
+        // Empty remainder
         assert_eq!(
             checked_arbitrary_take_rest::<&[u8]>(Unstructured::new(&[])).unwrap(),
             &[]
@@ -1280,6 +1286,12 @@ mod test {
         assert_eq!(
             checked_arbitrary_take_rest::<Vec<u8>>(Unstructured::new(&[])).unwrap(),
             &[]
+        );
+
+        // Cannot consume all but can consume part of the input
+        assert_eq!(
+            checked_arbitrary_take_rest::<String>(Unstructured::new(&[1, 0xFF, 2])).unwrap(),
+            "\x01"
         );
     }
 
