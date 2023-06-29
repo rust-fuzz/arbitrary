@@ -47,7 +47,7 @@ use std::borrow::{Cow, ToOwned};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
 use std::hash::BuildHasher;
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ops::Bound;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -1137,6 +1137,23 @@ impl<'a> Arbitrary<'a> for Ipv6Addr {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (16, Some(16))
+    }
+}
+
+impl<'a> Arbitrary<'a> for IpAddr {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        if u.arbitrary()? {
+            Ok(IpAddr::V4(u.arbitrary()?))
+        } else {
+            Ok(IpAddr::V6(u.arbitrary()?))
+        }
+    }
+
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        size_hint::and(
+            bool::size_hint(depth),
+            size_hint::or(Ipv4Addr::size_hint(depth), Ipv6Addr::size_hint(depth)),
+        )
     }
 }
 
