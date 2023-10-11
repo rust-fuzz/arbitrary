@@ -440,6 +440,7 @@ macro_rules! impl_range {
 
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                #[allow(clippy::redundant_closure_call)]
                 $size_hint_closure(depth)
             }
         }
