@@ -440,6 +440,7 @@ macro_rules! impl_range {
 
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                #[allow(clippy::redundant_closure_call)]
                 $size_hint_closure(depth)
             }
         }
@@ -1161,6 +1162,56 @@ impl<'a> Arbitrary<'a> for IpAddr {
 mod test {
     use super::*;
 
+    /// Assert that the given expected values are all generated.
+    ///
+    /// Exhaustively enumerates all buffers up to length 10 containing the
+    /// following bytes: `0x00`, `0x01`, `0x61` (aka ASCII 'a'), and `0xff`
+    fn assert_generates<T>(expected_values: impl IntoIterator<Item = T>)
+    where
+        T: Clone + std::fmt::Debug + std::hash::Hash + Eq + for<'a> Arbitrary<'a>,
+    {
+        let expected_values: HashSet<_> = expected_values.into_iter().collect();
+        let mut arbitrary_expected = expected_values.clone();
+        let mut arbitrary_take_rest_expected = expected_values;
+
+        let bytes = [0, 1, b'a', 0xff];
+        let max_len = 10;
+
+        let mut buf = Vec::with_capacity(max_len);
+
+        let mut g = exhaustigen::Gen::new();
+        while !g.done() {
+            let len = g.gen(max_len);
+
+            buf.clear();
+            buf.extend(
+                std::iter::repeat_with(|| {
+                    let index = g.gen(bytes.len() - 1);
+                    bytes[index]
+                })
+                .take(len),
+            );
+
+            let mut u = Unstructured::new(&buf);
+            let val = T::arbitrary(&mut u).unwrap();
+            arbitrary_expected.remove(&val);
+
+            let u = Unstructured::new(&buf);
+            let val = T::arbitrary_take_rest(u).unwrap();
+            arbitrary_take_rest_expected.remove(&val);
+
+            if arbitrary_expected.is_empty() && arbitrary_take_rest_expected.is_empty() {
+                return;
+            }
+        }
+
+        panic!(
+            "failed to generate all expected values!\n\n\
+             T::arbitrary did not generate: {arbitrary_expected:#?}\n\n\
+             T::arbitrary_take_rest did not generate {arbitrary_take_rest_expected:#?}"
+        )
+    }
+
     /// Generates an arbitrary `T`, and checks that the result is consistent with the
     /// `size_hint()` reported by `T`.
     fn checked_arbitrary<'a, T: Arbitrary<'a>>(u: &mut Unstructured<'a>) -> Result<T> {
@@ -1231,6 +1282,16 @@ mod test {
         let expected = 1 | (2 << 8) | (3 << 16) | (4 << 24);
         let actual = checked_arbitrary::<i32>(&mut buf).unwrap();
         assert_eq!(expected, actual);
+
+        assert_generates([
+            i32::from_ne_bytes([0, 0, 0, 0]),
+            i32::from_ne_bytes([0, 0, 0, 1]),
+            i32::from_ne_bytes([0, 0, 1, 0]),
+            i32::from_ne_bytes([0, 1, 0, 0]),
+            i32::from_ne_bytes([1, 0, 0, 0]),
+            i32::from_ne_bytes([1, 1, 1, 1]),
+            i32::from_ne_bytes([0xff, 0xff, 0xff, 0xff]),
+        ]);
     }
 
     #[test]
@@ -1249,6 +1310,74 @@ mod test {
         let expected = &[1, 2, 3, 4];
         let actual = checked_arbitrary_take_rest::<&[u8]>(buf).unwrap();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn arbitrary_for_vec_u8() {
+        assert_generates::<Vec<u8>>([
+            vec![],
+            vec![0],
+            vec![1],
+            vec![0, 0],
+            vec![0, 1],
+            vec![1, 0],
+            vec![1, 1],
+            vec![0, 0, 0],
+            vec![0, 0, 1],
+            vec![0, 1, 0],
+            vec![0, 1, 1],
+            vec![1, 0, 0],
+            vec![1, 0, 1],
+            vec![1, 1, 0],
+            vec![1, 1, 1],
+        ]);
+    }
+
+    #[test]
+    fn arbitrary_for_vec_vec_u8() {
+        assert_generates::<Vec<Vec<u8>>>([
+            vec![],
+            vec![vec![]],
+            vec![vec![0]],
+            vec![vec![1]],
+            vec![vec![0, 1]],
+            vec![vec![], vec![]],
+            vec![vec![0], vec![]],
+            vec![vec![], vec![1]],
+            vec![vec![0], vec![1]],
+            vec![vec![0, 1], vec![]],
+            vec![vec![], vec![1, 0]],
+            vec![vec![], vec![], vec![]],
+        ]);
+    }
+
+    #[test]
+    fn arbitrary_for_vec_vec_vec_u8() {
+        assert_generates::<Vec<Vec<Vec<u8>>>>([
+            vec![],
+            vec![vec![]],
+            vec![vec![vec![0]]],
+            vec![vec![vec![1]]],
+            vec![vec![vec![0, 1]]],
+            vec![vec![], vec![]],
+            vec![vec![], vec![vec![]]],
+            vec![vec![vec![]], vec![]],
+            vec![vec![vec![]], vec![vec![]]],
+            vec![vec![vec![0]], vec![]],
+            vec![vec![], vec![vec![1]]],
+            vec![vec![vec![0]], vec![vec![1]]],
+            vec![vec![vec![0, 1]], vec![]],
+            vec![vec![], vec![vec![0, 1]]],
+            vec![vec![], vec![], vec![]],
+            vec![vec![vec![]], vec![], vec![]],
+            vec![vec![], vec![vec![]], vec![]],
+            vec![vec![], vec![], vec![vec![]]],
+        ]);
+    }
+
+    #[test]
+    fn arbitrary_for_string() {
+        assert_generates::<String>(["".into(), "a".into(), "aa".into(), "aaa".into()]);
     }
 
     #[test]
@@ -1284,11 +1413,11 @@ mod test {
         );
         assert_eq!(
             checked_arbitrary_take_rest::<Vec<u8>>(Unstructured::new(&x)).unwrap(),
-            &[1, 2, 3, 4]
+            &[2, 4]
         );
         assert_eq!(
             checked_arbitrary_take_rest::<Vec<u32>>(Unstructured::new(&x)).unwrap(),
-            &[0x4030201]
+            &[0x040302]
         );
         assert_eq!(
             checked_arbitrary_take_rest::<String>(Unstructured::new(&x)).unwrap(),

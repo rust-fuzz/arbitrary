@@ -10,7 +10,7 @@ authors = [
     "Corey Farwell <coreyf@rwell.org>",
 ]
 categories = ["development-tools::testing"]
-edition = "2018"
+edition = "2021"
 keywords = ["arbitrary", "testing"]
 readme = "README.md"
 description = "The trait for generating structured data from unstructured data"
@@ -37,3 +37,6 @@ required-features = ["derive"]
 
 [workspace]
 members = ["./fuzz"]
+
+[dev-dependencies]
+exhaustigen = "0.1.0"
