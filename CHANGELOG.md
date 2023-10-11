@@ -28,6 +28,19 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.3.1
+
+Released 2023-10-11.
+
+### Fixed
+
+* Fixed an issue with generating collections of collections in
+  `arbitrary_take_rest` where `<Vec<Vec<u8>>>::arbitrary_take_rest` would never
+  generate `vec![vec![]]` for example. See
+  [#159](https://github.com/rust-fuzz/arbitrary/pull/159) for details.
+
+--------------------------------------------------------------------------------
+
 ## 1.3.0
 
 Released 2023-03-13.
