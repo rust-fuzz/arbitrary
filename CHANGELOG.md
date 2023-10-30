@@ -28,6 +28,17 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 1.3.2
+
+Released 2023-10-30.
+
+### Added
+
+* Added `Arbitrary` implementations for `Arc<[T]>` and
+  `Rc<[T]>`. [#160](https://github.com/rust-fuzz/arbitrary/pull/160)
+
+--------------------------------------------------------------------------------
+
 ## 1.3.1
 
 Released 2023-10-11.

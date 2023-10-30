@@ -1,6 +1,6 @@
 [package]
 name = "derive_arbitrary"
-version = "1.3.1" # Make sure it matches the version of the arbitrary crate itself (not including the patch version)
+version = "1.3.2" # Make sure it matches the version of the arbitrary crate itself (not including the patch version)
 authors = [
     "The Rust-Fuzz Project Developers",
     "Nick Fitzgerald <fitzgen@gmail.com>",
