@@ -934,12 +934,16 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
 
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <Vec<A> as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_slice())
+        u.arbitrary_iter()?.collect()
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <Vec<A> as Arbitrary>::size_hint(depth)
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -978,6 +982,21 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
     }
 }
 
+impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<[A]> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        u.arbitrary_iter()?.collect()
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
+    }
+}
+
 impl<'a> Arbitrary<'a> for Arc<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <&str as Arbitrary>::arbitrary(u).map(Into::into)
@@ -997,6 +1016,21 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+    }
+}
+
+impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<[A]> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        u.arbitrary_iter()?.collect()
+    }
+
+    fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
+        u.arbitrary_take_rest_iter()?.collect()
+    }
+
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, None)
     }
 }
 
@@ -1394,6 +1428,18 @@ mod test {
             &[2, 4, 6, 8, 1]
         );
         assert_eq!(
+            &*checked_arbitrary::<Box<[u8]>>(&mut Unstructured::new(&x)).unwrap(),
+            &[2, 4, 6, 8, 1]
+        );
+        assert_eq!(
+            &*checked_arbitrary::<Arc<[u8]>>(&mut Unstructured::new(&x)).unwrap(),
+            &[2, 4, 6, 8, 1]
+        );
+        assert_eq!(
+            &*checked_arbitrary::<Rc<[u8]>>(&mut Unstructured::new(&x)).unwrap(),
+            &[2, 4, 6, 8, 1]
+        );
+        assert_eq!(
             checked_arbitrary::<Vec<u32>>(&mut Unstructured::new(&x)).unwrap(),
             &[84148994]
         );
@@ -1413,6 +1459,18 @@ mod test {
         );
         assert_eq!(
             checked_arbitrary_take_rest::<Vec<u8>>(Unstructured::new(&x)).unwrap(),
+            &[2, 4]
+        );
+        assert_eq!(
+            &*checked_arbitrary_take_rest::<Box<[u8]>>(Unstructured::new(&x)).unwrap(),
+            &[2, 4]
+        );
+        assert_eq!(
+            &*checked_arbitrary_take_rest::<Arc<[u8]>>(Unstructured::new(&x)).unwrap(),
+            &[2, 4]
+        );
+        assert_eq!(
+            &*checked_arbitrary_take_rest::<Rc<[u8]>>(Unstructured::new(&x)).unwrap(),
             &[2, 4]
         );
         assert_eq!(
