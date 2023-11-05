@@ -309,11 +309,7 @@ macro_rules! impl_arbitrary_for_integers {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
                     let mut buf = [0; mem::size_of::<$ty>()];
                     u.fill_buffer(&mut buf)?;
-                    let mut x: $unsigned = 0;
-                    for i in 0..mem::size_of::<$ty>() {
-                        x |= buf[i] as $unsigned << (i * 8);
-                    }
-                    Ok(x as $ty)
+                    Ok(Self::from_le_bytes(buf))
                 }
 
                 #[inline]
@@ -889,7 +885,8 @@ impl<'a> Arbitrary<'a> for CString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <Vec<u8> as Arbitrary>::arbitrary(u).map(|mut x| {
             x.retain(|&c| c != 0);
-            Self::new(x).unwrap()
+            // SAFETY: all zero bytes have been removed
+            unsafe { Self::from_vec_unchecked(x) }
         })
     }
 
