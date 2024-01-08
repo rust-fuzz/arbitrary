@@ -68,6 +68,7 @@ use std::{mem, ops};
 /// }
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct Unstructured<'a> {
     data: &'a [u8],
 }
