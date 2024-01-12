@@ -1097,7 +1097,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for iter::Empty<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::marker::PhantomData<A> {
+impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(::std::marker::PhantomData)
     }
