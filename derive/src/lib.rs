@@ -216,6 +216,7 @@ fn gen_arbitrary_method(
                 .iter()
                 .enumerate()
                 .map(|(i, variant)| {
+                    check_variant_attrs(variant)?;
                     let idx = i as u64;
                     let variant_name = &variant.ident;
                     construct(&variant.fields, |_, field| gen_constructor_for_field(field))
@@ -400,4 +401,19 @@ fn gen_constructor_for_field(field: &Field) -> Result<TokenStream> {
         FieldConstructor::Value(value) => quote!(#value),
     };
     Ok(ctor)
+}
+
+fn check_variant_attrs(variant: &Variant) -> Result<()> {
+    for attr in &variant.attrs {
+        if attr.path().is_ident(ARBITRARY_ATTRIBUTE_NAME) {
+            return Err(Error::new_spanned(
+                attr,
+                format!(
+                    "invalid `{}` attribute. it is unsupported on enum variants. try applying it to a field of the variant instead",
+                    ARBITRARY_ATTRIBUTE_NAME
+                ),
+            ));
+        }
+    }
+    Ok(())
 }

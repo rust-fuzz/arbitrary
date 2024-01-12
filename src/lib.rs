@@ -1666,5 +1666,14 @@ mod test {
 ///     x: T,
 /// }
 /// ```
+///
+/// Attempt to use the derive attribute on an enum variant:
+/// ```compile_fail
+/// #[derive(::arbitrary::Arbitrary)]
+/// enum Enum<T: Default> {
+///     #[arbitrary(default)]
+///     Variant(T),
+/// }
+/// ```
 #[cfg(all(doctest, feature = "derive"))]
 pub struct CompileFailTests;
