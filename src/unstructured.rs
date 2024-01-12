@@ -876,8 +876,7 @@ mod tests {
         // Should take one byte off the end
         assert_eq!(u.arbitrary_byte_size().unwrap(), 6);
         assert_eq!(u.len(), 9);
-        let mut v = vec![];
-        v.resize(260, 0);
+        let mut v = vec![0; 260];
         v.push(1);
         v.push(4);
         let mut u = Unstructured::new(&v);
