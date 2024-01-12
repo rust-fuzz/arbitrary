@@ -1108,6 +1108,17 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     }
 }
 
+impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
+    fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
+        Ok(::std::marker::PhantomPinned)
+    }
+
+    #[inline]
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
+}
+
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
