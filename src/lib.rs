@@ -303,7 +303,7 @@ impl<'a> Arbitrary<'a> for bool {
 }
 
 macro_rules! impl_arbitrary_for_integers {
-    ( $( $ty:ty: $unsigned:ty; )* ) => {
+    ( $( $ty:ty; )* ) => {
         $(
             impl<'a> Arbitrary<'a> for $ty {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -324,18 +324,18 @@ macro_rules! impl_arbitrary_for_integers {
 }
 
 impl_arbitrary_for_integers! {
-    u8: u8;
-    u16: u16;
-    u32: u32;
-    u64: u64;
-    u128: u128;
-    usize: usize;
-    i8: u8;
-    i16: u16;
-    i32: u32;
-    i64: u64;
-    i128: u128;
-    isize: usize;
+    u8;
+    u16;
+    u32;
+    u64;
+    u128;
+    usize;
+    i8;
+    i16;
+    i32;
+    i64;
+    i128;
+    isize;
 }
 
 macro_rules! impl_arbitrary_for_floats {
