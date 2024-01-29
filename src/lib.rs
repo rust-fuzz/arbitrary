@@ -96,6 +96,25 @@ use std::sync::{Arc, Mutex};
 ///
 /// Every member of the `struct` or `enum` must also implement `Arbitrary`.
 ///
+/// It is also possible to change the default bounds added by the derive:
+///
+/// ```
+/// # #[cfg(feature = "derive")] mod foo {
+/// use arbitrary::Arbitrary;
+///
+/// trait Trait {
+///     type Assoc: for<'a> Arbitrary<'a>;
+/// }
+///
+/// #[derive(Arbitrary)]
+/// // The bounds are used verbatim, so any existing trait bounds will need to be repeated.
+/// #[arbitrary(bound = "T: Trait")]
+/// struct Point<T: Trait> {
+///     x: T::Assoc,
+/// }
+/// # }
+/// ```
+///
 /// # Implementing `Arbitrary` By Hand
 ///
 /// Implementing `Arbitrary` mostly involves nested calls to other `Arbitrary`
