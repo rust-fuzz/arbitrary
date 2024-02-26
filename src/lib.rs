@@ -14,6 +14,7 @@
 //! [`Arbitrary`](./trait.Arbitrary.html) trait's documentation for details on
 //! automatically deriving, implementing, and/or using the trait.
 
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
@@ -43,16 +44,42 @@ use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZ
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "alloc")]
+use alloc::borrow::Cow;
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::borrow::ToOwned;
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::boxed::Box;
+#[cfg(feature = "alloc")]
+use alloc::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
+#[cfg(feature = "alloc")]
+use alloc::ffi::CString;
+#[cfg(feature = "alloc")]
+use alloc::rc::Rc;
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use alloc::sync::Arc;
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
 use core::ops::Bound;
 use core::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
-use std::borrow::{Cow, ToOwned};
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
-use std::ffi::{CString, OsString};
+#[cfg(feature = "std")]
+use std::collections::{HashMap, HashSet};
+#[cfg(feature = "std")]
+use std::ffi::OsString;
+#[cfg(feature = "std")]
 use std::hash::BuildHasher;
+#[cfg(feature = "std")]
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+#[cfg(feature = "std")]
 use std::path::PathBuf;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+#[cfg(feature = "std")]
+use std::sync::Mutex;
 
 /// Generate arbitrary structured values from raw, unstructured data.
 ///
@@ -81,11 +108,13 @@ use std::sync::{Arc, Mutex};
 /// use arbitrary::Arbitrary;
 /// use std::collections::HashSet;
 ///
+/// # #[cfg(feature = "std")]
 /// #[derive(Arbitrary)]
 /// pub struct AddressBook {
 ///     friends: HashSet<Friend>,
 /// }
 ///
+/// # #[cfg(feature = "alloc")]
 /// #[derive(Arbitrary, Hash, Eq, PartialEq)]
 /// pub enum Friend {
 ///     Buddy { name: String },
@@ -690,6 +719,7 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -705,6 +735,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K, V> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -720,6 +751,7 @@ impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K,
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -754,6 +786,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -769,7 +802,8 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     }
 }
 
-impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>, S: BuildHasher + Default>
+#[cfg(feature = "std")]
+impl<'a, K: Arbitrary<'a> + Eq + core::hash::Hash, V: Arbitrary<'a>, S: BuildHasher + Default>
     Arbitrary<'a> for HashMap<K, V, S>
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -786,7 +820,8 @@ impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>, S: BuildHa
     }
 }
 
-impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Arbitrary<'a>
+#[cfg(feature = "std")]
+impl<'a, A: Arbitrary<'a> + Eq + core::hash::Hash, S: BuildHasher + Default> Arbitrary<'a>
     for HashSet<A, S>
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -803,6 +838,7 @@ impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Ar
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -818,6 +854,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -833,6 +870,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A> Arbitrary<'a> for Cow<'a, A>
 where
     A: ToOwned + ?Sized,
@@ -885,6 +923,7 @@ impl<'a> Arbitrary<'a> for &'a str {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Arbitrary<'a> for String {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <&str as Arbitrary>::arbitrary(u).map(Into::into)
@@ -900,6 +939,7 @@ impl<'a> Arbitrary<'a> for String {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Arbitrary<'a> for CString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <Vec<u8> as Arbitrary>::arbitrary(u).map(|mut x| {
@@ -915,6 +955,7 @@ impl<'a> Arbitrary<'a> for CString {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for OsString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(From::from)
@@ -926,6 +967,7 @@ impl<'a> Arbitrary<'a> for OsString {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for PathBuf {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <OsString as Arbitrary>::arbitrary(u).map(From::from)
@@ -937,6 +979,7 @@ impl<'a> Arbitrary<'a> for PathBuf {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -948,6 +991,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -963,6 +1007,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Arbitrary<'a> for Box<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
@@ -987,6 +1032,7 @@ impl<'a> Arbitrary<'a> for Box<str> {
 //     }
 // }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -998,6 +1044,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -1013,6 +1060,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<[A]> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Arbitrary<'a> for Arc<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <&str as Arbitrary>::arbitrary(u).map(Into::into)
@@ -1024,6 +1072,7 @@ impl<'a> Arbitrary<'a> for Arc<str> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -1035,6 +1084,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<[A]> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -1050,6 +1100,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<[A]> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Arbitrary<'a> for Rc<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         <&str as Arbitrary>::arbitrary(u).map(Into::into)
@@ -1094,6 +1145,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Mutex<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -1180,6 +1232,7 @@ implement_nonzero_int! { NonZeroU64, u64 }
 implement_nonzero_int! { NonZeroU128, u128 }
 implement_nonzero_int! { NonZeroUsize, usize }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for Ipv4Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Ipv4Addr::from(u32::arbitrary(u)?))
@@ -1191,6 +1244,7 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for Ipv6Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Ipv6Addr::from(u128::arbitrary(u)?))
@@ -1202,6 +1256,7 @@ impl<'a> Arbitrary<'a> for Ipv6Addr {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for IpAddr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         if u.arbitrary()? {
@@ -1219,6 +1274,7 @@ impl<'a> Arbitrary<'a> for IpAddr {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for SocketAddrV4 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(SocketAddrV4::new(u.arbitrary()?, u.arbitrary()?))
@@ -1230,6 +1286,7 @@ impl<'a> Arbitrary<'a> for SocketAddrV4 {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for SocketAddrV6 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(SocketAddrV6::new(
@@ -1252,6 +1309,7 @@ impl<'a> Arbitrary<'a> for SocketAddrV6 {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> Arbitrary<'a> for SocketAddr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         if u.arbitrary()? {
@@ -1275,6 +1333,7 @@ impl<'a> Arbitrary<'a> for SocketAddr {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::collections::HashSet;
 
     /// Assert that the given expected values are all generated.
     ///
@@ -1427,6 +1486,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn arbitrary_for_vec_u8() {
         assert_generates::<Vec<u8>>([
             vec![],
@@ -1448,6 +1508,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn arbitrary_for_vec_vec_u8() {
         assert_generates::<Vec<Vec<u8>>>([
             vec![],
@@ -1466,6 +1527,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn arbitrary_for_vec_vec_vec_u8() {
         assert_generates::<Vec<Vec<Vec<u8>>>>([
             vec![],
@@ -1490,11 +1552,13 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn arbitrary_for_string() {
         assert_generates::<String>(["".into(), "a".into(), "aa".into(), "aaa".into()]);
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn arbitrary_collection() {
         let x = [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 12,
@@ -1530,6 +1594,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn arbitrary_take_rest() {
         // Basic examples
         let x = [1, 2, 3, 4];
@@ -1580,6 +1645,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn size_hint_for_tuples() {
         assert_eq!(
             (7, Some(7)),
