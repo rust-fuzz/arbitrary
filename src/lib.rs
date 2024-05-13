@@ -152,6 +152,17 @@ use std::sync::{Arc, Mutex};
 /// }
 /// # }
 /// ```
+///
+/// # A Note On Output Distributions
+///
+/// There is no requirement for a particular distribution of the values. For
+/// example, it is not required that every value appears with the same
+/// probability. That being said, the main use for `Arbitrary` is for fuzzing,
+/// so in many cases a uniform distribution will make the most sense in order to
+/// provide the best coverage of the domain. In other cases this is not
+/// desirable or even possible, for example when sampling from a uniform
+/// distribution is computationally expensive or in the case of collections that
+/// may grow indefinitely.
 pub trait Arbitrary<'a>: Sized {
     /// Generate an arbitrary value of `Self` from the given unstructured data.
     ///
