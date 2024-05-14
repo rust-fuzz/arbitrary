@@ -43,7 +43,7 @@ use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZ
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
-use std::borrow::{Cow, ToOwned};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
 use std::hash::BuildHasher;
@@ -53,6 +53,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
 use std::sync::{Arc, Mutex};
+
+#[cfg(feature = "f16")]
+use half::f16;
 
 /// Generate arbitrary structured values from raw, unstructured data.
 ///
@@ -377,6 +380,11 @@ macro_rules! impl_arbitrary_for_floats {
 impl_arbitrary_for_floats! {
     f32: u32;
     f64: u64;
+}
+
+#[cfg(feature = "f16")]
+impl_arbitrary_for_floats! {
+    f16: u16;
 }
 
 impl<'a> Arbitrary<'a> for char {

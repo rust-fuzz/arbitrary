@@ -21,10 +21,13 @@ rust-version = "1.63.0"
 
 [dependencies]
 derive_arbitrary = { version = "1.3.2", path = "./derive", optional = true }
+half = { version = "2.4.1", optional = true }
 
 [features]
+default = []
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
+f16 = ["dep:half"]
 
 [[example]]
 name = "derive_enum"
