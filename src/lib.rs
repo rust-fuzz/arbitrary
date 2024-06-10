@@ -359,13 +359,36 @@ impl_arbitrary_for_integers! {
     u32;
     u64;
     u128;
-    usize;
     i8;
     i16;
     i32;
     i64;
     i128;
-    isize;
+}
+
+// Note: We forward Arbitrary for i/usize to i/u64 in order to simplify corpus
+// compatibility between 32-bit and 64-bit builds. This introduces dead space in
+// 32-bit builds but keeps the input layout independent of the build platform.
+impl<'a> Arbitrary<'a> for usize {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        u.arbitrary::<u64>().map(|x| x as usize)
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <u64 as Arbitrary>::size_hint(depth)
+    }
+}
+
+impl<'a> Arbitrary<'a> for isize {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        u.arbitrary::<i64>().map(|x| x as isize)
+    }
+
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <i64 as Arbitrary>::size_hint(depth)
+    }
 }
 
 macro_rules! impl_arbitrary_for_floats {
