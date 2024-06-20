@@ -25,6 +25,20 @@ jobs:
       run: cargo test --verbose --all-features --all
     - name: Build Examples
       run: cargo build --examples --all-features --all
+  no_std_build:
+    name: no_std Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: rustup update
+    - name: Build
+      run: cargo build --verbose --no-default-features
+    - name: Build
+      run: cargo build --verbose --no-default-features --features=alloc
+    - name: Run tests
+      run: cargo test --verbose --no-default-features
+    - name: Run tests as no_std with alloc
+      run: cargo test --verbose --no-default-features --features=alloc
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
