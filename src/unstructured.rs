@@ -420,14 +420,14 @@ impl<'a> Unstructured<'a> {
     ///
     /// # Examples
     ///
-    /// Selecting a random item from a hash set:
+    /// Selecting a random item from a set:
     ///
     /// ```
-    /// use std::collections::HashSet;
+    /// use std::collections::BTreeSet;
     /// use arbitrary::Unstructured;
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
-    /// let set = HashSet::from(['a', 'b', 'c']);
+    /// let set = BTreeSet::from(['a', 'b', 'c']);
     ///
     /// let choice = u.choose_iter(set.iter()).unwrap();
     ///
