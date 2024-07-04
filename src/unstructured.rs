@@ -433,10 +433,12 @@ impl<'a> Unstructured<'a> {
     ///
     /// println!("chose {}", choice);
     /// ```
-    pub fn choose_iter<T, I>(&mut self, mut choices: I) -> Result<T>
+    pub fn choose_iter<T, I>(&mut self, choices: I) -> Result<T>
     where
-        I: ExactSizeIterator<Item = T>,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator,
     {
+        let mut choices = choices.into_iter();
         let idx = self.choose_index(choices.len())?;
         let choice = choices
             .nth(idx)
