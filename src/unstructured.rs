@@ -411,6 +411,39 @@ impl<'a> Unstructured<'a> {
         Ok(&choices[idx])
     }
 
+    /// Choose one of the given iterator choices.
+    ///
+    /// This should only be used inside of `Arbitrary` implementations.
+    ///
+    /// Returns an error if there is not enough underlying data to make a
+    /// choice or if no choices are provided.
+    ///
+    /// # Examples
+    ///
+    /// Selecting a random item from a hash set:
+    ///
+    /// ```
+    /// use std::collections::HashSet;
+    /// use arbitrary::Unstructured;
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    /// let set = HashSet::from(['a', 'b', 'c']);
+    ///
+    /// let choice = u.choose_iter(set.iter()).unwrap();
+    ///
+    /// println!("chose {}", choice);
+    /// ```
+    pub fn choose_iter<T, I>(&mut self, mut choices: I) -> Result<T>
+    where
+        I: ExactSizeIterator<Item = T>,
+    {
+        let idx = self.choose_index(choices.len())?;
+        let choice = choices
+            .nth(idx)
+            .expect("ExactSizeIterator should have correct len");
+        Ok(choice)
+    }
+
     /// Choose a value in `0..len`.
     ///
     /// Returns an error if the `len` is zero.
