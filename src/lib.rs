@@ -321,6 +321,7 @@ impl<'a> Arbitrary<'a> for () {
     }
 }
 
+/// Returns false, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for bool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(<u8 as Arbitrary<'a>>::arbitrary(u)? & 1 == 1)
@@ -335,6 +336,8 @@ impl<'a> Arbitrary<'a> for bool {
 macro_rules! impl_arbitrary_for_integers {
     ( $( $ty:ty; )* ) => {
         $(
+            /// Returns zero, not an error,
+            /// if this `Unstructured` [is empty][Unstructured::is_empty].
             impl<'a> Arbitrary<'a> for $ty {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
                     let mut buf = [0; mem::size_of::<$ty>()];
@@ -369,6 +372,7 @@ impl_arbitrary_for_integers! {
 // Note: We forward Arbitrary for i/usize to i/u64 in order to simplify corpus
 // compatibility between 32-bit and 64-bit builds. This introduces dead space in
 // 32-bit builds but keeps the input layout independent of the build platform.
+/// Returns zero, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for usize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary::<u64>().map(|x| x as usize)
@@ -380,6 +384,7 @@ impl<'a> Arbitrary<'a> for usize {
     }
 }
 
+/// Returns zero, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for isize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary::<i64>().map(|x| x as isize)
@@ -394,6 +399,8 @@ impl<'a> Arbitrary<'a> for isize {
 macro_rules! impl_arbitrary_for_floats {
     ( $( $ty:ident : $unsigned:ty; )* ) => {
         $(
+            /// Returns zero, not an error,
+            /// if this `Unstructured` [is empty][Unstructured::is_empty].
             impl<'a> Arbitrary<'a> for $ty {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
                     Ok(Self::from_bits(<$unsigned as Arbitrary<'a>>::arbitrary(u)?))
@@ -413,6 +420,7 @@ impl_arbitrary_for_floats! {
     f64: u64;
 }
 
+/// Returns '\0', not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         use std::char;
@@ -437,6 +445,7 @@ impl<'a> Arbitrary<'a> for char {
     }
 }
 
+/// Returns false, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for AtomicBool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -448,6 +457,7 @@ impl<'a> Arbitrary<'a> for AtomicBool {
     }
 }
 
+/// Returns zero, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for AtomicIsize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -459,6 +469,7 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
     }
 }
 
+/// Returns zero, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for AtomicUsize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -559,6 +570,7 @@ where
     cb(bound)
 }
 
+/// Returns zero, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for Duration {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Self::new(
@@ -576,6 +588,7 @@ impl<'a> Arbitrary<'a> for Duration {
     }
 }
 
+/// Returns `None`, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
@@ -1620,6 +1633,20 @@ mod test {
             <(bool, u16, i32) as Arbitrary<'_>>::size_hint(0)
         );
         assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
+    }
+
+    #[test]
+    fn exhausted_entropy() {
+        let mut u = Unstructured::new(&[]);
+        assert_eq!(u.arbitrary::<bool>().unwrap(), false);
+        assert_eq!(u.arbitrary::<u8>().unwrap(), 0);
+        assert_eq!(u.arbitrary::<usize>().unwrap(), 0);
+        assert_eq!(u.arbitrary::<f32>().unwrap(), 0.0);
+        assert_eq!(u.arbitrary::<f64>().unwrap(), 0.0);
+        assert_eq!(u.arbitrary::<Option<u32>>().unwrap(), None);
+        assert_eq!(u.int_in_range(4..=100).unwrap(), 4);
+        assert_eq!(u.choose_index(10).unwrap(), 0);
+        assert_eq!(u.ratio(5, 7).unwrap(), true);
     }
 }
 
