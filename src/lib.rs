@@ -43,7 +43,7 @@ use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZ
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
 use core::str;
 use core::time::Duration;
-use std::borrow::{Cow, ToOwned};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::ffi::{CString, OsString};
 use std::hash::BuildHasher;
@@ -53,6 +53,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 /// Generate arbitrary structured values from raw, unstructured data.
 ///
@@ -1306,6 +1307,32 @@ impl<'a> Arbitrary<'a> for SocketAddr {
     }
 }
 
+impl<'a> Arbitrary<'a> for SystemTime {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        // Create a SystemTime by adding or subtracting a duration from epoch.
+        // The result is not guaranteed to fit. Keep trying until a good SystemTime if found.
+        loop {
+            let add: bool = u.arbitrary()?;
+            let duration: Duration = u.arbitrary()?;
+            if add {
+                if let Some(system_time) = SystemTime::UNIX_EPOCH.checked_add(duration) {
+                    return Ok(system_time);
+                }
+            } else if let Some(system_time) = SystemTime::UNIX_EPOCH.checked_sub(duration) {
+                return Ok(system_time);
+            }
+        }
+    }
+
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        size_hint::and_all(&[
+            bool::size_hint(depth),
+            Duration::size_hint(depth),
+            (0, None),
+        ])
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1620,6 +1647,19 @@ mod test {
             <(bool, u16, i32) as Arbitrary<'_>>::size_hint(0)
         );
         assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
+    }
+
+    #[test]
+    fn size_hint_for_system_time() {
+        let system_time = SystemTime::size_hint(0);
+
+        // SystemTime::size_hint as minimum of bool + Duration
+        assert_eq!(
+            system_time.0,
+            size_hint::and(bool::size_hint(0), Duration::size_hint(0)).0
+        );
+        // SystemTime::size_hint has no maximum
+        assert_eq!(system_time.1, None);
     }
 }
 
