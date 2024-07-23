@@ -335,17 +335,17 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
                 determine_field_constructor(f).map(|field_constructor| {
                     match field_constructor {
                         FieldConstructor::Default | FieldConstructor::Value(_) => {
-                            quote!((0, Some(0)))
+                            quote!(Ok((0, Some(0))))
                         }
                         FieldConstructor::Arbitrary => {
-                            quote! { <#ty as arbitrary::Arbitrary>::size_hint(depth) }
+                            quote! { <#ty as arbitrary::Arbitrary>::faillible_size_hint(depth) }
                         }
 
                         // Note that in this case it's hard to determine what size_hint must be, so size_of::<T>() is
                         // just an educated guess, although it's gonna be inaccurate for dynamically
                         // allocated types (Vec, HashMap, etc.).
                         FieldConstructor::With(_) => {
-                            quote! { (::core::mem::size_of::<#ty>(), None) }
+                            quote! { Ok((::core::mem::size_of::<#ty>(), None)) }
                         }
                     }
                 })
@@ -353,9 +353,9 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
             .collect::<Result<Vec<TokenStream>>>()
             .map(|hints| {
                 quote! {
-                    arbitrary::size_hint::and_all(&[
-                        #( #hints ),*
-                    ])
+                    Ok(arbitrary::size_hint::and_all(&[
+                        #( #hints? ),*
+                    ]))
                 }
             })
     };
@@ -364,7 +364,12 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
             quote! {
                 #[inline]
                 fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                    arbitrary::size_hint::recursion_guard(depth, |depth| #hint)
+                    Self::faillible_size_hint(depth).unwrap_or_default()
+                }
+
+                #[inline]
+                fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), arbitrary::MaxRecursionReached> {
+                    arbitrary::size_hint::faillible_recursion_guard(depth, |depth| #hint)
                 }
             }
         })
@@ -381,12 +386,16 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
                 quote! {
                     #[inline]
                     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                        arbitrary::size_hint::and(
-                            <u32 as arbitrary::Arbitrary>::size_hint(depth),
-                            arbitrary::size_hint::recursion_guard(depth, |depth| {
-                                arbitrary::size_hint::or_all(&[ #( #variants ),* ])
-                            }),
-                        )
+                        Self::faillible_size_hint(depth).unwrap_or_default()
+                    }
+                    #[inline]
+                    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), arbitrary::MaxRecursionReached> {
+                        Ok(arbitrary::size_hint::and(
+                            <u32 as arbitrary::Arbitrary>::faillible_size_hint(depth)?,
+                            arbitrary::size_hint::faillible_recursion_guard(depth, |depth| {
+                                Ok(arbitrary::size_hint::or_all(&[ #( #variants? ),* ]))
+                            })?,
+                        ))
                     }
                 }
             }),

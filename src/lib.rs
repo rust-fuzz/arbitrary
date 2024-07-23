@@ -34,8 +34,8 @@ pub use unstructured::Unstructured;
 
 pub mod size_hint;
 
-use core::array;
 use core::cell::{Cell, RefCell, UnsafeCell};
+use core::fmt;
 use core::iter;
 use core::mem;
 use core::num::{NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize};
@@ -53,6 +53,18 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize};
 use std::sync::{Arc, Mutex};
+
+/// Error indicating that the maximum recursion depth has been reached while calculating [`Arbitrary::size_hint`]()
+#[derive(Debug, Clone, Copy)]
+pub struct MaxRecursionReached;
+
+impl fmt::Display for MaxRecursionReached {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Maximum recursion depth has been reached")
+    }
+}
+
+impl std::error::Error for MaxRecursionReached {}
 
 /// Generate arbitrary structured values from raw, unstructured data.
 ///
@@ -236,8 +248,73 @@ pub trait Arbitrary<'a>: Sized {
     /// create a better implementation. If you are writing an `Arbitrary`
     /// implementation by hand, and your type can be part of a dynamically sized
     /// collection (such as `Vec`), you are strongly encouraged to override this
-    /// default with a better implementation. The
-    /// [`size_hint`][crate::size_hint] module will help with this task.
+    /// default with a better implementation, and also override [`faillible_size_hint`]
+    ///
+    /// ## How to implement this
+    ///
+    /// If the size hint calculation is a trivial constant and does not recurse into any other `size_hint` call, you should implement it in `size_hint`:
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured, size_hint, Result};
+    ///
+    /// struct SomeStruct(u8);
+    ///
+    /// impl<'a> Arbitrary<'a> for SomeStruct {
+    ///     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+    ///         let buf = &mut [0];
+    ///         u.fill_buffer(buf)?;
+    ///         Ok(SomeStruct(buf[0]))
+    ///     }
+    ///
+    ///     #[inline]
+    ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    ///         let _ = depth;
+    ///         (1, Some(1))
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Otherwise, it should instead be implemented in [`faillible_size_hint`],
+    /// and the `size_hint` implementation should forward to it:
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured, size_hint, Result, MaxRecursionReached};
+    ///
+    /// struct SomeStruct<A, B> {
+    ///     a: A,
+    ///     b: B,
+    /// }
+    ///
+    /// impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for SomeStruct<A, B> {
+    ///     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+    ///         todo!()
+    ///     }
+    ///
+    ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    ///         // Return the value of faillible_size_hint
+    ///         //
+    ///         // If the recursion fails, return the default, always valid `(0, None)`
+    ///         Self::faillible_size_hint(depth).unwrap_or_default()
+    ///     }
+    ///
+    ///     fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+    ///         // Protect against potential infinite recursion with
+    ///         // `faillible_recursion_guard`.
+    ///         size_hint::faillible_recursion_guard(depth, |depth| {
+    ///            // If we aren't too deep, then `recursion_guard` calls
+    ///            // this closure, which implements the natural size hint.
+    ///            // Don't forget to use the new `depth` in all nested
+    ///            // `faillible_size_hint` calls! We recommend shadowing the
+    ///            // parameter, like what is done here, so that you can't
+    ///            // accidentally use the wrong depth.
+    ///            Ok(size_hint::and(
+    ///                <A as Arbitrary>::faillible_size_hint(depth)?,
+    ///                <B as Arbitrary>::faillible_size_hint(depth)?,
+    ///            ))
+    ///         })
+    ///     }
+    /// }
+    /// ```
     ///
     /// ## Invariant
     ///
@@ -250,21 +327,61 @@ pub trait Arbitrary<'a>: Sized {
     /// outputs which are still possible to produce using the reduced input
     /// space.
     ///
-    /// ## The `depth` Parameter
+    /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
+    /// [`faillible_size_hint`]: Arbitrary::faillible_size_hint
+    #[inline]
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        let _ = depth;
+        (0, None)
+    }
+
+    /// Get a size hint for how many bytes out of an `Unstructured` this type
+    /// needs to construct itself.
+    ///
+    /// Unlike [`size_hint`], this function keeps the information
+    /// that the recursion limit was reached. This is required to "short circuit" the calculation
+    /// and avoid exponential blowup with recursive structures.
+    ///
+    /// If you are implementing [`size_hint`] for a struct that could be recursive, you should implement `faillible_size_hint` and call the `faillible_size_hint` when recursing
+    ///
+    ///
+    /// The return value is similar to
+    /// [`Iterator::size_hint`][iterator-size-hint]: it returns a tuple where
+    /// the first element is a lower bound on the number of bytes required, and
+    /// the second element is an optional upper bound.
+    ///
+    /// The default implementation return the value of [`size_hint`] which is correct for any
+    /// type, but might lead to exponential blowup when dealing with recursive types.
+    ///
+    /// ## Invariant
+    ///
+    /// It must be possible to construct every possible output using only inputs
+    /// of lengths bounded by these parameters. This applies to both
+    /// [`Arbitrary::arbitrary`] and [`Arbitrary::arbitrary_take_rest`].
+    ///
+    /// This is trivially true for `(0, None)`. To restrict this further, it
+    /// must be proven that all inputs that are now excluded produced redundant
+    /// outputs which are still possible to produce using the reduced input
+    /// space.
+    ///
+    /// ## When to implement `faillible_size_hint`
     ///
     /// If you 100% know that the type you are implementing `Arbitrary` for is
     /// not a recursive type, or your implementation is not transitively calling
-    /// any other `size_hint` methods, you can ignore the `depth` parameter.
+    /// any other `size_hint` methods, you just implement [`size_hint`], and the
+    /// default `faillible_size_hint` implementation will use it.
     /// Note that if you are implementing `Arbitrary` for a generic type, you
     /// cannot guarantee the lack of type recursion!
     ///
-    /// Otherwise, you need to use
-    /// [`arbitrary::size_hint::recursion_guard(depth)`][crate::size_hint::recursion_guard]
+    /// ## The `depth` parameter
+    ///
+    /// When implementing `faillible_size_hint`, you need to use
+    /// [`arbitrary::size_hint::faillible_recursion_guard(depth)`][crate::size_hint::faillible_recursion_guard]
     /// to prevent potential infinite recursion when calculating size hints for
     /// potentially recursive types:
     ///
     /// ```
-    /// use arbitrary::{Arbitrary, Unstructured, size_hint};
+    /// use arbitrary::{Arbitrary, Unstructured, size_hint, MaxRecursionReached};
     ///
     /// // This can potentially be a recursive type if `L` or `R` contain
     /// // something like `Box<Option<MyEither<L, R>>>`!
@@ -284,29 +401,36 @@ pub trait Arbitrary<'a>: Sized {
     ///     }
     ///
     ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    ///         // Return the value of faillible_size_hint
+    ///         //
+    ///         // If the recursion fails, return the default, always valid `(0, None)`
+    ///         Self::faillible_size_hint(depth).unwrap_or_default()
+    ///     }
+    ///
+    ///     fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
     ///         // Protect against potential infinite recursion with
-    ///         // `recursion_guard`.
-    ///         size_hint::recursion_guard(depth, |depth| {
-    ///             // If we aren't too deep, then `recursion_guard` calls
-    ///             // this closure, which implements the natural size hint.
-    ///             // Don't forget to use the new `depth` in all nested
-    ///             // `size_hint` calls! We recommend shadowing the
-    ///             // parameter, like what is done here, so that you can't
-    ///             // accidentally use the wrong depth.
-    ///             size_hint::or(
-    ///                 <L as Arbitrary>::size_hint(depth),
-    ///                 <R as Arbitrary>::size_hint(depth),
-    ///             )
+    ///         // `faillible_recursion_guard`.
+    ///         size_hint::faillible_recursion_guard(depth, |depth| {
+    ///            // If we aren't too deep, then `recursion_guard` calls
+    ///            // this closure, which implements the natural size hint.
+    ///            // Don't forget to use the new `depth` in all nested
+    ///            // `faillible_size_hint` calls! We recommend shadowing the
+    ///            // parameter, like what is done here, so that you can't
+    ///            // accidentally use the wrong depth.
+    ///            Ok(size_hint::or(
+    ///                <L as Arbitrary>::faillible_size_hint(depth)?,
+    ///                <R as Arbitrary>::faillible_size_hint(depth)?,
+    ///            ))
     ///         })
     ///     }
     /// }
     /// ```
     ///
     /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
+    /// [`size_hint`]: Arbitrary::size_hint
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        let _ = depth;
-        (0, None)
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(Self::size_hint(depth))
     }
 }
 
@@ -330,6 +454,11 @@ impl<'a> Arbitrary<'a> for bool {
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <u8 as Arbitrary<'a>>::size_hint(depth)
     }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <u8 as Arbitrary<'a>>::faillible_size_hint(depth)
+    }
 }
 
 macro_rules! impl_arbitrary_for_integers {
@@ -347,7 +476,6 @@ macro_rules! impl_arbitrary_for_integers {
                     let n = mem::size_of::<$ty>();
                     (n, Some(n))
                 }
-
             }
         )*
     }
@@ -489,6 +617,13 @@ macro_rules! impl_range {
 
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                Self::faillible_size_hint(depth).unwrap_or_default()
+            }
+
+            #[inline]
+            fn faillible_size_hint(
+                depth: usize,
+            ) -> Result<(usize, Option<usize>), MaxRecursionReached> {
                 #[allow(clippy::redundant_closure_call)]
                 $size_hint_closure(depth)
             }
@@ -501,41 +636,41 @@ impl_range!(
     |r: &Range<A>| (r.start.clone(), r.end.clone()),
     (A, A),
     bounded_range(|(a, b)| a..b),
-    |depth| crate::size_hint::and(
-        <A as Arbitrary>::size_hint(depth),
-        <A as Arbitrary>::size_hint(depth)
-    )
+    |depth| Ok(crate::size_hint::and(
+        <A as Arbitrary>::faillible_size_hint(depth)?,
+        <A as Arbitrary>::faillible_size_hint(depth)?,
+    ))
 );
 impl_range!(
     RangeFrom<A>,
     |r: &RangeFrom<A>| r.start.clone(),
     A,
     unbounded_range(|a| a..),
-    |depth| <A as Arbitrary>::size_hint(depth)
+    |depth| Ok(<A as Arbitrary>::size_hint(depth))
 );
 impl_range!(
     RangeInclusive<A>,
     |r: &RangeInclusive<A>| (r.start().clone(), r.end().clone()),
     (A, A),
     bounded_range(|(a, b)| a..=b),
-    |depth| crate::size_hint::and(
-        <A as Arbitrary>::size_hint(depth),
-        <A as Arbitrary>::size_hint(depth)
-    )
+    |depth| Ok(crate::size_hint::and(
+        <A as Arbitrary>::faillible_size_hint(depth)?,
+        <A as Arbitrary>::faillible_size_hint(depth)?,
+    ))
 );
 impl_range!(
     RangeTo<A>,
     |r: &RangeTo<A>| r.end.clone(),
     A,
     unbounded_range(|b| ..b),
-    |depth| <A as Arbitrary>::size_hint(depth)
+    |depth| Ok(<A as Arbitrary>::size_hint(depth))
 );
 impl_range!(
     RangeToInclusive<A>,
     |r: &RangeToInclusive<A>| r.end.clone(),
     A,
     unbounded_range(|b| ..=b),
-    |depth| <A as Arbitrary>::size_hint(depth)
+    |depth| Ok(<A as Arbitrary>::size_hint(depth))
 );
 
 pub(crate) fn bounded_range<CB, I, R>(bounds: (I, I), cb: CB) -> R
@@ -569,10 +704,15 @@ impl<'a> Arbitrary<'a> for Duration {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(
-            <u64 as Arbitrary>::size_hint(depth),
-            <u32 as Arbitrary>::size_hint(depth),
-        )
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(crate::size_hint::and(
+            <u64 as Arbitrary>::faillible_size_hint(depth)?,
+            <u32 as Arbitrary>::faillible_size_hint(depth)?,
+        ))
     }
 }
 
@@ -587,10 +727,15 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(
-            <bool as Arbitrary>::size_hint(depth),
-            crate::size_hint::or((0, Some(0)), <A as Arbitrary>::size_hint(depth)),
-        )
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(crate::size_hint::and(
+            <bool as Arbitrary>::faillible_size_hint(depth)?,
+            crate::size_hint::or((0, Some(0)), <A as Arbitrary>::faillible_size_hint(depth)?),
+        ))
     }
 }
 
@@ -605,13 +750,17 @@ impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Resu
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and(
-            <bool as Arbitrary>::size_hint(depth),
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(crate::size_hint::and(
+            <bool as Arbitrary>::faillible_size_hint(depth)?,
             crate::size_hint::or(
-                <A as Arbitrary>::size_hint(depth),
-                <B as Arbitrary>::size_hint(depth),
+                <A as Arbitrary>::faillible_size_hint(depth)?,
+                <B as Arbitrary>::faillible_size_hint(depth)?,
             ),
-        )
+        ))
     }
 }
 
@@ -638,6 +787,14 @@ macro_rules! arbitrary_tuple {
                     <$last as Arbitrary>::size_hint(depth),
                     $( <$xs as Arbitrary>::size_hint(depth) ),*
                 ])
+            }
+
+            #[inline]
+            fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+                Ok(crate::size_hint::and_all(&[
+                    <$last as Arbitrary>::faillible_size_hint(depth)?,
+                    $( <$xs as Arbitrary>::faillible_size_hint(depth)?),*
+                ]))
             }
         }
     };
@@ -701,10 +858,14 @@ where
     }
 
     #[inline]
-    fn size_hint(d: usize) -> (usize, Option<usize>) {
-        crate::size_hint::and_all(&array::from_fn::<_, N, _>(|_| {
-            <T as Arbitrary>::size_hint(d)
-        }))
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        let items = <T as Arbitrary>::faillible_size_hint(depth)?;
+        Ok(crate::size_hint::and_all(&[items; N]))
     }
 }
 
@@ -781,10 +942,15 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::or(
-            size_hint::and((1, Some(1)), A::size_hint(depth)),
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(size_hint::or(
+            size_hint::and((1, Some(1)), A::faillible_size_hint(depth)?),
             (1, Some(1)),
-        )
+        ))
     }
 }
 
@@ -878,8 +1044,13 @@ where
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, |depth| {
-            <<A as ToOwned>::Owned as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, |depth| {
+            <<A as ToOwned>::Owned as Arbitrary>::faillible_size_hint(depth)
         })
     }
 }
@@ -945,7 +1116,12 @@ impl<'a> Arbitrary<'a> for CString {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <Vec<u8> as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <Vec<u8> as Arbitrary>::faillible_size_hint(depth)
     }
 }
 
@@ -956,7 +1132,12 @@ impl<'a> Arbitrary<'a> for OsString {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <String as Arbitrary>::faillible_size_hint(depth)
     }
 }
 
@@ -967,7 +1148,12 @@ impl<'a> Arbitrary<'a> for PathBuf {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <OsString as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <OsString as Arbitrary>::faillible_size_hint(depth)
     }
 }
 
@@ -978,7 +1164,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1004,7 +1195,12 @@ impl<'a> Arbitrary<'a> for Box<str> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <String as Arbitrary>::faillible_size_hint(depth)
     }
 }
 
@@ -1028,7 +1224,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1054,7 +1255,12 @@ impl<'a> Arbitrary<'a> for Arc<str> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <&str as Arbitrary>::faillible_size_hint(depth)
     }
 }
 
@@ -1065,7 +1271,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1091,7 +1302,12 @@ impl<'a> Arbitrary<'a> for Rc<str> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <&str as Arbitrary>::faillible_size_hint(depth)
     }
 }
 
@@ -1102,7 +1318,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Cell<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <A as Arbitrary<'a>>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1113,7 +1334,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for RefCell<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <A as Arbitrary<'a>>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1124,7 +1350,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <A as Arbitrary<'a>>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1135,7 +1366,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Mutex<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <A as Arbitrary<'a>>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1179,7 +1415,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <A as Arbitrary<'a>>::size_hint(depth)
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        crate::size_hint::faillible_recursion_guard(depth, <A as Arbitrary>::faillible_size_hint)
     }
 }
 
@@ -1195,7 +1436,14 @@ macro_rules! implement_nonzero_int {
 
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                <$int as Arbitrary<'a>>::size_hint(depth)
+                Self::faillible_size_hint(depth).unwrap_or_default()
+            }
+
+            #[inline]
+            fn faillible_size_hint(
+                depth: usize,
+            ) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+                <$int as Arbitrary<'a>>::faillible_size_hint(depth)
             }
         }
     };
@@ -1245,11 +1493,20 @@ impl<'a> Arbitrary<'a> for IpAddr {
         }
     }
 
+    #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            bool::size_hint(depth),
-            size_hint::or(Ipv4Addr::size_hint(depth), Ipv6Addr::size_hint(depth)),
-        )
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(size_hint::and(
+            bool::faillible_size_hint(depth)?,
+            size_hint::or(
+                Ipv4Addr::faillible_size_hint(depth)?,
+                Ipv6Addr::faillible_size_hint(depth)?,
+            ),
+        ))
     }
 }
 
@@ -1260,7 +1517,15 @@ impl<'a> Arbitrary<'a> for SocketAddrV4 {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(Ipv4Addr::size_hint(depth), u16::size_hint(depth))
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(size_hint::and(
+            Ipv4Addr::faillible_size_hint(depth)?,
+            u16::faillible_size_hint(depth)?,
+        ))
     }
 }
 
@@ -1276,13 +1541,21 @@ impl<'a> Arbitrary<'a> for SocketAddrV6 {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            Ipv6Addr::size_hint(depth),
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(size_hint::and(
+            Ipv6Addr::faillible_size_hint(depth)?,
             size_hint::and(
-                u16::size_hint(depth),
-                size_hint::and(u32::size_hint(depth), u32::size_hint(depth)),
+                u16::faillible_size_hint(depth)?,
+                size_hint::and(
+                    u32::faillible_size_hint(depth)?,
+                    u32::faillible_size_hint(depth)?,
+                ),
             ),
-        )
+        ))
     }
 }
 
@@ -1295,14 +1568,19 @@ impl<'a> Arbitrary<'a> for SocketAddr {
         }
     }
 
+    #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            bool::size_hint(depth),
+        Self::faillible_size_hint(depth).unwrap_or_default()
+    }
+
+    fn faillible_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        Ok(size_hint::and(
+            bool::faillible_size_hint(depth)?,
             size_hint::or(
-                SocketAddrV4::size_hint(depth),
-                SocketAddrV6::size_hint(depth),
+                SocketAddrV4::faillible_size_hint(depth)?,
+                SocketAddrV6::faillible_size_hint(depth)?,
             ),
-        )
+        ))
     }
 }
 
