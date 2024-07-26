@@ -32,6 +32,10 @@ pub mod unstructured;
 #[doc(inline)]
 pub use unstructured::Unstructured;
 
+mod dearbitrary;
+pub use dearbitrary::{Error as DearbitraryError, Result as DearbitraryResult};
+use unstructured::UnstructuredBuilder;
+
 pub mod size_hint;
 
 use core::array;
@@ -310,53 +314,6 @@ pub trait Arbitrary<'a>: Sized {
     }
 }
 
-pub struct UnstructuredBuilder {
-    front: Vec<u8>,
-    back: Vec<u8>
-}
-
-impl UnstructuredBuilder {
-    pub fn push_front(&mut self, value: u8) {
-        self.front.push(value);
-    }
-
-    pub fn extend_front<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
-        self.front.extend(iter);
-    }
-
-    pub fn extend_from_dearbitrary_iter<
-        'a,
-        A: Dearbitrary<'a>,
-        T: IntoIterator<Item = A>
-    >(&mut self, iter: T) {
-        for value in iter {
-            value.dearbitrary(self);
-        }
-    }
-
-    pub fn extend_front_from_slice(&mut self, other: &[u8]) {
-        self.front.extend_from_slice(other);
-    }
-
-    pub fn push_back(&mut self, value: u8) {
-        self.back.push(value);
-    }
-
-    pub fn extend_back<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
-        self.back.extend(iter);
-    }
-
-    pub fn extend_back_from_slice(&mut self, other: &[u8]) {
-        self.back.extend_from_slice(other);
-    }
-
-    pub fn collect(mut self) -> Vec<u8> {
-        self.back.reverse();
-        self.front.extend(self.back);
-        self.front
-    }
-}
-
 /// Generate raw bytes from structured values.
 /// 
 /// The `Dearbitrary` trait is the inverse of the [Arbitrary] trait, and it allows
@@ -364,9 +321,14 @@ impl UnstructuredBuilder {
 /// by the [Arbitrary] trait.
 /// 
 /// However, this trait does not return bytes directly, as bytes can also be read from
-/// the end.
+/// the end of the stream to better assist fuzzers.
+/// 
+/// Due to the end-writing capabilities, dearbitration happens in reverse.
 pub trait Dearbitrary<'a>: Arbitrary<'a> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder);
+    /// Apply `Self` to an [UnstructuredBuilder].
+    /// 
+    /// **Note**: This must be built in reverse.
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()>;
 }
 
 impl<'a> Arbitrary<'a> for () {
@@ -381,7 +343,8 @@ impl<'a> Arbitrary<'a> for () {
 }
 
 impl<'a> Dearbitrary<'a> for () {
-    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        Ok(())
     }
 }
 
@@ -397,7 +360,7 @@ impl<'a> Arbitrary<'a> for bool {
 }
 
 impl<'a> Dearbitrary<'a> for bool {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         if *self { u8::dearbitrary(&1, builder) } else { u8::dearbitrary(&0, builder) }
     }
 }
@@ -421,8 +384,9 @@ macro_rules! impl_all_arbitrary_for_integers {
             }
 
             impl<'a> Dearbitrary<'a> for $ty {
-                fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-                    builder.front.extend(self.to_le_bytes().to_vec())
+                fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+                    builder.extend_front_from_slice(&self.to_le_bytes());
+                    Ok(())
                 }
             }
         )*
@@ -457,8 +421,8 @@ impl<'a> Arbitrary<'a> for usize {
 }
 
 impl<'a> Dearbitrary<'a> for usize {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        u64::dearbitrary(&(*self as u64), builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        u64::dearbitrary(&(*self as u64), builder)
     }
 }
 
@@ -474,8 +438,8 @@ impl<'a> Arbitrary<'a> for isize {
 }
 
 impl<'a> Dearbitrary<'a> for isize {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        i64::dearbitrary(&(*self as i64), builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        i64::dearbitrary(&(*self as i64), builder)
     }
 }
 
@@ -494,7 +458,7 @@ macro_rules! impl_all_arbitrary_for_floats {
             }
 
             impl<'a> Dearbitrary<'a> for $ty {
-                fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+                fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
                     <$unsigned>::dearbitrary(&self.to_bits(), builder)
                 }
             }
@@ -532,8 +496,8 @@ impl<'a> Arbitrary<'a> for char {
 }
 
 impl<'a> Dearbitrary<'a> for char {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        unimplemented!()
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        (*self as u32).dearbitrary(builder)
     }
 }
 
@@ -601,8 +565,8 @@ macro_rules! impl_range {
         where
             A: Dearbitrary<'a> + Clone + PartialOrd,
         {
-            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-                unimplemented!()
+            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+                $value_closure(self).dearbitrary(builder)
             }
         }
     };
@@ -689,9 +653,9 @@ impl<'a> Arbitrary<'a> for Duration {
 }
 
 impl<'a> Dearbitrary<'a> for Duration {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_secs().dearbitrary(builder);
-        self.subsec_nanos().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.subsec_nanos().dearbitrary(builder)?;
+        self.as_secs().dearbitrary(builder)
     }
 }
 
@@ -714,14 +678,14 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
 }
 
 impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Option<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         match self {
             Some(value) => {
-                true.dearbitrary(builder);
-                value.dearbitrary(builder);
+                value.dearbitrary(builder)?;
+                true.dearbitrary(builder)
             }
             None => {
-                false.dearbitrary(builder);
+                false.dearbitrary(builder)
             }
         }
     }
@@ -749,15 +713,15 @@ impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Resu
 }
 
 impl <'a, A: Dearbitrary<'a>, B: Dearbitrary<'a>> Dearbitrary<'a> for std::result::Result<A, B> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         match self {
             Result::Ok(value) => {
-                true.dearbitrary(builder);
-                value.dearbitrary(builder);
+                value.dearbitrary(builder)?;
+                true.dearbitrary(builder)
             }
             Result::Err(value) => {
-                false.dearbitrary(builder);
-                value.dearbitrary(builder);
+                value.dearbitrary(builder)?;
+                false.dearbitrary(builder)
             }
         }
     }
@@ -765,8 +729,8 @@ impl <'a, A: Dearbitrary<'a>, B: Dearbitrary<'a>> Dearbitrary<'a> for std::resul
 
 macro_rules! arbitrary_tuple {
     () => {};
-    ($last: ident $($xs: ident)*) => {
-        arbitrary_tuple!($($xs)*);
+    ($lidx: tt $last: ident $($idx: tt $xs: ident)*) => {
+        arbitrary_tuple!($($idx $xs)*);
 
         impl<'a, $($xs: Arbitrary<'a>,)* $last: Arbitrary<'a>> Arbitrary<'a> for ($($xs,)* $last,) {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -790,13 +754,15 @@ macro_rules! arbitrary_tuple {
         }
 
         impl<'a, $($xs: Dearbitrary<'a>,)* $last: Dearbitrary<'a>> Dearbitrary<'a> for ($($xs,)* $last,) {
-            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-                unimplemented!()
+            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+                self.$lidx.dearbitrary(builder)?;
+                $( self.$idx.dearbitrary(builder)?; )*
+                Ok(())
             }
         }
     };
 }
-arbitrary_tuple!(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z);
+arbitrary_tuple!(25 A 24 B 23 C 22 D 21 E 20 F 19 G 18 H 17 I 16 J 15 K 14 L 13 M 12 N 11 O 10 P 9 Q 8 R 7 S 6 T 5 U 4 V 3 W 2 X 1 Y 0 Z);
 
 // Helper to safely create arrays since the standard library doesn't
 // provide one yet. Shouldn't be necessary in the future.
@@ -864,10 +830,11 @@ where
 
 impl<'a, T, const N: usize> Dearbitrary<'a> for [T; N]
 where
-    T: Dearbitrary<'a>,
+    T: Dearbitrary<'a> + Clone,
 {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        unimplemented!()
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -888,9 +855,9 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
 }
 
 impl<'a> Dearbitrary<'a> for &'a [u8] {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_front_from_slice(self);
-        builder.extend_back(self.len())
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev_with_length(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -910,8 +877,9 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
 }
 
 impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for Vec<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().cloned());
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -931,8 +899,9 @@ impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K,
 }
 
 impl <'a, K: Dearbitrary<'a> + Ord + Clone, V: Dearbitrary<'a> + Clone> Dearbitrary<'a> for BTreeMap<K, V> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().map(|(k, v)| (k.clone(), v.clone())));
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().map(|(k, v)| (k.clone(), v.clone())));
+        Ok(())
     }
 }
 
@@ -952,14 +921,15 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
 }
 
 impl<'a, A: Dearbitrary<'a> + Ord + Clone> Dearbitrary<'a> for BTreeSet<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().cloned());
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        match u.int_in_range::<u8>(0..=2)? {
+        match u.int_in_range::<u8, 1>(0..=2)? {
             0 => Ok(Bound::Included(A::arbitrary(u)?)),
             1 => Ok(Bound::Excluded(A::arbitrary(u)?)),
             2 => Ok(Bound::Unbounded),
@@ -977,18 +947,18 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
 }
 
 impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Bound<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         match self {
             Bound::Included(value) => {
-                (0 as u8).dearbitrary(builder);
-                value.dearbitrary(builder);
+                value.dearbitrary(builder)?;
+                (0 as u8).dearbitrary(builder)
             }
             Bound::Excluded(value) => {
-                (1 as u8).dearbitrary(builder);
-                value.dearbitrary(builder);
+                value.dearbitrary(builder)?;
+                (1 as u8).dearbitrary(builder)
             },
             Bound::Unbounded => {
-                (2 as u8).dearbitrary(builder);
+                (2 as u8).dearbitrary(builder)
             }
         }
     }
@@ -1010,8 +980,9 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
 }
 
 impl<'a, A: Dearbitrary<'a> + Ord + Clone> Dearbitrary<'a> for BinaryHeap<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().cloned());
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -1035,8 +1006,11 @@ impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>, S: BuildHa
 impl<'a, K: Dearbitrary<'a> + Eq + Clone + ::std::hash::Hash, V: Dearbitrary<'a> + Clone, S: BuildHasher + Default>
     Dearbitrary<'a> for HashMap<K, V, S>
 {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().map(|(k, v)| (k.clone(), v.clone())));
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        let mut pairs = self.iter().collect::<Vec<_>>();
+        pairs.reverse();
+        builder.extend_from_dearbitrary_iter(pairs.iter().cloned().map(|(k, v)| (k.clone(), v.clone())));
+        Ok(())
     }
 }
 
@@ -1060,8 +1034,9 @@ impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Ar
 impl<'a, A: Dearbitrary<'a> + Eq + Clone + ::std::hash::Hash, S: BuildHasher + Default> Dearbitrary<'a>
     for HashSet<A, S>
 {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().cloned());
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned().collect::<Vec<_>>().iter().cloned());
+        Ok(())
     }
 }
 
@@ -1081,8 +1056,9 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
 }
 
 impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for LinkedList<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().cloned());
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -1102,8 +1078,9 @@ impl<'a, A: Arbitrary<'a> + Clone> Arbitrary<'a> for VecDeque<A> {
 }
 
 impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for VecDeque<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.iter().cloned()); 
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -1129,8 +1106,8 @@ where
     A: ToOwned + ?Sized,
     <A as ToOwned>::Owned: Dearbitrary<'a>,
 {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.clone().into_owned().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.clone().into_owned().dearbitrary(builder)
     }
 }
 
@@ -1170,8 +1147,9 @@ impl<'a> Arbitrary<'a> for &'a str {
 }
 
 impl<'a> Dearbitrary<'a> for &'a str {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_bytes().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev_with_length(self.as_bytes().iter().copied());
+        Ok(())
     }
 }
 
@@ -1191,8 +1169,8 @@ impl<'a> Arbitrary<'a> for String {
 }
 
 impl<'a> Dearbitrary<'a> for String {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_str().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_str().dearbitrary(builder)
     }
 }
 
@@ -1212,8 +1190,8 @@ impl<'a> Arbitrary<'a> for CString {
 }
 
 impl<'a> Dearbitrary<'a> for CString {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_bytes().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_bytes().dearbitrary(builder)
     }
 }
 
@@ -1229,8 +1207,11 @@ impl<'a> Arbitrary<'a> for OsString {
 }
 
 impl<'a> Dearbitrary<'a> for OsString {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         self.clone().into_string()
+            .map_err(|_| DearbitraryError::TooSpecific)
+            .map(|string| string.dearbitrary(builder))
+            .and_then(std::convert::identity)
     }
 }
 
@@ -1246,8 +1227,8 @@ impl<'a> Arbitrary<'a> for PathBuf {
 }
 
 impl<'a> Dearbitrary<'a> for PathBuf {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.clone().into_os_string().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.clone().into_os_string().dearbitrary(builder)
     }
 }
 
@@ -1263,8 +1244,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
 }
 
 impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Box<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().clone().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_ref().dearbitrary(builder)
     }
 }
 
@@ -1283,9 +1264,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     }
 }
 
-impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Box<[A]> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().clone()
+impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for Box<[A]> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -1301,8 +1283,8 @@ impl<'a> Arbitrary<'a> for Box<str> {
 }
 
 impl<'a> Dearbitrary<'a> for Box<str> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_ref().dearbitrary(builder)
     }
 }
 
@@ -1331,8 +1313,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
 }
 
 impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Arc<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().clone().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_ref().dearbitrary(builder)
     }
 }
 
@@ -1351,9 +1333,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<[A]> {
     }
 }
 
-impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Arc<[A]> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        builder.extend_from_dearbitrary_iter(self.as_ref().clone())
+impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for Arc<[A]> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -1369,8 +1352,8 @@ impl<'a> Arbitrary<'a> for Arc<str> {
 }
 
 impl<'a> Dearbitrary<'a> for Arc<str> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().clone().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_ref().dearbitrary(builder)
     }
 }
 
@@ -1386,8 +1369,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
 }
 
 impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Rc<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().clone().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_ref().dearbitrary(builder)
     }
 }
 
@@ -1406,9 +1389,10 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<[A]> {
     }
 }
 
-impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Rc<[A]> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        unimplemented!()
+impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for Rc<[A]> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        builder.extend_from_dearbitrary_iter_rev(self.iter().cloned());
+        Ok(())
     }
 }
 
@@ -1424,11 +1408,12 @@ impl<'a> Arbitrary<'a> for Rc<str> {
 }
 
 impl<'a> Dearbitrary<'a> for Rc<str> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.as_ref().clone().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.as_ref().dearbitrary(builder)
     }
 }
 
+// Note: Cell does not implement Dearbitrary
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Cell<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -1437,12 +1422,6 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Cell<A> {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         <A as Arbitrary<'a>>::size_hint(depth)
-    }
-}
-
-impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Cell<A> {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        unimplemented!()
     }
 }
 
@@ -1494,8 +1473,8 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for iter::Empty<A> {
 }
 
 impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for iter::Empty<A> {
-    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
-        
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        Ok(())
     }
 }
 
@@ -1511,8 +1490,8 @@ impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
 }
 
 impl<'a, A: ?Sized> Dearbitrary<'a> for ::std::marker::PhantomData<A> {
-    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
-        
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        Ok(())
     }
 }
 
@@ -1528,8 +1507,8 @@ impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
 }
 
 impl<'a> Dearbitrary<'a> for ::std::marker::PhantomPinned {
-    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
-        
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        Ok(())
     }
 }
 
@@ -1561,8 +1540,8 @@ macro_rules! implement_nonzero_int {
         }
 
         impl<'a> Dearbitrary<'a> for $nonzero {
-            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-                self.get().dearbitrary(builder);
+            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+                self.get().dearbitrary(builder)
             }
         }
     };
@@ -1593,7 +1572,7 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
 }
 
 impl<'a> Dearbitrary<'a> for Ipv4Addr {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         u32::dearbitrary(&self.to_bits(), builder)
     }
 }
@@ -1610,7 +1589,7 @@ impl<'a> Arbitrary<'a> for Ipv6Addr {
 }
 
 impl<'a> Dearbitrary<'a> for Ipv6Addr {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         u128::dearbitrary(&self.to_bits(), builder)
     }
 }
@@ -1633,15 +1612,15 @@ impl<'a> Arbitrary<'a> for IpAddr {
 }
 
 impl<'a> Dearbitrary<'a> for IpAddr {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         match self {
             IpAddr::V4(v4) => {
-                true.dearbitrary(builder);
-                v4.dearbitrary(builder);
+                v4.dearbitrary(builder)?;
+                true.dearbitrary(builder)
             }
             IpAddr::V6(v6) => {
-                false.dearbitrary(builder);
-                v6.dearbitrary(builder);
+                v6.dearbitrary(builder)?;
+                false.dearbitrary(builder)
             }
         }
     }
@@ -1658,9 +1637,9 @@ impl<'a> Arbitrary<'a> for SocketAddrV4 {
     }
 }
 impl<'a> Dearbitrary<'a> for SocketAddrV4 {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.ip().dearbitrary(builder);
-        self.port().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.port().dearbitrary(builder)?;
+        self.ip().dearbitrary(builder)
     }
 }
 
@@ -1687,11 +1666,11 @@ impl<'a> Arbitrary<'a> for SocketAddrV6 {
 }
 
 impl<'a> Dearbitrary<'a> for SocketAddrV6 {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
-        self.ip().dearbitrary(builder);
-        self.port().dearbitrary(builder);
-        self.flowinfo().dearbitrary(builder);
-        self.scope_id().dearbitrary(builder);
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
+        self.scope_id().dearbitrary(builder)?;
+        self.flowinfo().dearbitrary(builder)?;
+        self.port().dearbitrary(builder)?;
+        self.ip().dearbitrary(builder)
     }
 }
 
@@ -1716,15 +1695,15 @@ impl<'a> Arbitrary<'a> for SocketAddr {
 }
 
 impl<'a> Dearbitrary<'a> for SocketAddr {
-    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
         match self {
             SocketAddr::V4(v4) => {
-                true.dearbitrary(builder);
-                v4.dearbitrary(builder);
+                v4.dearbitrary(builder)?;
+                true.dearbitrary(builder)
             }
             SocketAddr::V6(v6) => {
-                false.dearbitrary(builder);
-                v6.dearbitrary(builder);
+                v6.dearbitrary(builder)?;
+                false.dearbitrary(builder)
             }
         }
     }
