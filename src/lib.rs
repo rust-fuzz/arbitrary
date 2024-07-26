@@ -294,8 +294,8 @@ pub trait Arbitrary<'a>: Sized {
     ///             // parameter, like what is done here, so that you can't
     ///             // accidentally use the wrong depth.
     ///             size_hint::or(
-    ///                 <L as Arbitrary>::size_hint(depth),
-    ///                 <R as Arbitrary>::size_hint(depth),
+    ///                 L::size_hint(depth),
+    ///                 R::size_hint(depth),
     ///             )
     ///         })
     ///     }
@@ -310,6 +310,65 @@ pub trait Arbitrary<'a>: Sized {
     }
 }
 
+pub struct UnstructuredBuilder {
+    front: Vec<u8>,
+    back: Vec<u8>
+}
+
+impl UnstructuredBuilder {
+    pub fn push_front(&mut self, value: u8) {
+        self.front.push(value);
+    }
+
+    pub fn extend_front<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
+        self.front.extend(iter);
+    }
+
+    pub fn extend_from_dearbitrary_iter<
+        'a,
+        A: Dearbitrary<'a>,
+        T: IntoIterator<Item = A>
+    >(&mut self, iter: T) {
+        for value in iter {
+            value.dearbitrary(self);
+        }
+    }
+
+    pub fn extend_front_from_slice(&mut self, other: &[u8]) {
+        self.front.extend_from_slice(other);
+    }
+
+    pub fn push_back(&mut self, value: u8) {
+        self.back.push(value);
+    }
+
+    pub fn extend_back<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
+        self.back.extend(iter);
+    }
+
+    pub fn extend_back_from_slice(&mut self, other: &[u8]) {
+        self.back.extend_from_slice(other);
+    }
+
+    pub fn collect(mut self) -> Vec<u8> {
+        self.back.reverse();
+        self.front.extend(self.back);
+        self.front
+    }
+}
+
+/// Generate raw bytes from structured values.
+/// 
+/// The `Dearbitrary` trait is the inverse of the [Arbitrary] trait, and it allows
+/// you to generate bytes that can be later turned into the exact value
+/// by the [Arbitrary] trait.
+/// 
+/// However, this trait does not return bytes directly, as bytes can also be read from
+/// the end.
+pub trait Dearbitrary<'a>: Arbitrary<'a> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder);
+}
+
 impl<'a> Arbitrary<'a> for () {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(())
@@ -321,18 +380,29 @@ impl<'a> Arbitrary<'a> for () {
     }
 }
 
+impl<'a> Dearbitrary<'a> for () {
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
+    }
+}
+
 impl<'a> Arbitrary<'a> for bool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(<u8 as Arbitrary<'a>>::arbitrary(u)? & 1 == 1)
+        Ok(u8::arbitrary(u)? & 1 == 1)
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <u8 as Arbitrary<'a>>::size_hint(depth)
+        u8::size_hint(depth)
     }
 }
 
-macro_rules! impl_arbitrary_for_integers {
+impl<'a> Dearbitrary<'a> for bool {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        if *self { u8::dearbitrary(&1, builder) } else { u8::dearbitrary(&0, builder) }
+    }
+}
+
+macro_rules! impl_all_arbitrary_for_integers {
     ( $( $ty:ty; )* ) => {
         $(
             impl<'a> Arbitrary<'a> for $ty {
@@ -349,11 +419,17 @@ macro_rules! impl_arbitrary_for_integers {
                 }
 
             }
+
+            impl<'a> Dearbitrary<'a> for $ty {
+                fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+                    builder.front.extend(self.to_le_bytes().to_vec())
+                }
+            }
         )*
     }
 }
 
-impl_arbitrary_for_integers! {
+impl_all_arbitrary_for_integers! {
     u8;
     u16;
     u32;
@@ -366,7 +442,7 @@ impl_arbitrary_for_integers! {
     i128;
 }
 
-// Note: We forward Arbitrary for i/usize to i/u64 in order to simplify corpus
+// Note: We forward (De)arbitrary for i/usize to i/u64 in order to simplify corpus
 // compatibility between 32-bit and 64-bit builds. This introduces dead space in
 // 32-bit builds but keeps the input layout independent of the build platform.
 impl<'a> Arbitrary<'a> for usize {
@@ -376,7 +452,13 @@ impl<'a> Arbitrary<'a> for usize {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <u64 as Arbitrary>::size_hint(depth)
+        u64::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for usize {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        u64::dearbitrary(&(*self as u64), builder);
     }
 }
 
@@ -387,11 +469,17 @@ impl<'a> Arbitrary<'a> for isize {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <i64 as Arbitrary>::size_hint(depth)
+        i64::size_hint(depth)
     }
 }
 
-macro_rules! impl_arbitrary_for_floats {
+impl<'a> Dearbitrary<'a> for isize {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        i64::dearbitrary(&(*self as i64), builder);
+    }
+}
+
+macro_rules! impl_all_arbitrary_for_floats {
     ( $( $ty:ident : $unsigned:ty; )* ) => {
         $(
             impl<'a> Arbitrary<'a> for $ty {
@@ -401,14 +489,20 @@ macro_rules! impl_arbitrary_for_floats {
 
                 #[inline]
                 fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                    <$unsigned as Arbitrary<'a>>::size_hint(depth)
+                    <$unsigned>::size_hint(depth)
+                }
+            }
+
+            impl<'a> Dearbitrary<'a> for $ty {
+                fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+                    <$unsigned>::dearbitrary(&self.to_bits(), builder)
                 }
             }
         )*
     }
 }
 
-impl_arbitrary_for_floats! {
+impl_all_arbitrary_for_floats! {
     f32: u32;
     f64: u64;
 }
@@ -420,7 +514,7 @@ impl<'a> Arbitrary<'a> for char {
         const CHAR_END: u32 = 0x11_0000;
         // The size of the surrogate blocks
         const SURROGATES_START: u32 = 0xD800;
-        let mut c = <u32 as Arbitrary<'a>>::arbitrary(u)? % CHAR_END;
+        let mut c = u32::arbitrary(u)? % CHAR_END;
         if let Some(c) = char::from_u32(c) {
             Ok(c)
         } else {
@@ -433,10 +527,19 @@ impl<'a> Arbitrary<'a> for char {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <u32 as Arbitrary<'a>>::size_hint(depth)
+        u32::size_hint(depth)
     }
 }
 
+impl<'a> Dearbitrary<'a> for char {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        unimplemented!()
+    }
+}
+
+// Note: We don't derive Dearbitrary for any atomics
+// because of having to specify the precise order to retrieve
+// the value from the atomic
 impl<'a> Arbitrary<'a> for AtomicBool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -444,7 +547,7 @@ impl<'a> Arbitrary<'a> for AtomicBool {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <bool as Arbitrary<'a>>::size_hint(depth)
+        bool::size_hint(depth)
     }
 }
 
@@ -455,7 +558,7 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <isize as Arbitrary<'a>>::size_hint(depth)
+        isize::size_hint(depth)
     }
 }
 
@@ -466,7 +569,7 @@ impl<'a> Arbitrary<'a> for AtomicUsize {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <usize as Arbitrary<'a>>::size_hint(depth)
+        usize::size_hint(depth)
     }
 }
 
@@ -493,6 +596,15 @@ macro_rules! impl_range {
                 $size_hint_closure(depth)
             }
         }
+
+        impl<'a, A> Dearbitrary<'a> for $range
+        where
+            A: Dearbitrary<'a> + Clone + PartialOrd,
+        {
+            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+                unimplemented!()
+            }
+        }
     };
 }
 
@@ -502,8 +614,8 @@ impl_range!(
     (A, A),
     bounded_range(|(a, b)| a..b),
     |depth| crate::size_hint::and(
-        <A as Arbitrary>::size_hint(depth),
-        <A as Arbitrary>::size_hint(depth)
+        A::size_hint(depth),
+        A::size_hint(depth)
     )
 );
 impl_range!(
@@ -511,7 +623,7 @@ impl_range!(
     |r: &RangeFrom<A>| r.start.clone(),
     A,
     unbounded_range(|a| a..),
-    |depth| <A as Arbitrary>::size_hint(depth)
+    |depth| A::size_hint(depth)
 );
 impl_range!(
     RangeInclusive<A>,
@@ -519,8 +631,8 @@ impl_range!(
     (A, A),
     bounded_range(|(a, b)| a..=b),
     |depth| crate::size_hint::and(
-        <A as Arbitrary>::size_hint(depth),
-        <A as Arbitrary>::size_hint(depth)
+        A::size_hint(depth),
+        A::size_hint(depth)
     )
 );
 impl_range!(
@@ -528,14 +640,14 @@ impl_range!(
     |r: &RangeTo<A>| r.end.clone(),
     A,
     unbounded_range(|b| ..b),
-    |depth| <A as Arbitrary>::size_hint(depth)
+    |depth| A::size_hint(depth)
 );
 impl_range!(
     RangeToInclusive<A>,
     |r: &RangeToInclusive<A>| r.end.clone(),
     A,
     unbounded_range(|b| ..=b),
-    |depth| <A as Arbitrary>::size_hint(depth)
+    |depth| A::size_hint(depth)
 );
 
 pub(crate) fn bounded_range<CB, I, R>(bounds: (I, I), cb: CB) -> R
@@ -562,7 +674,7 @@ where
 impl<'a> Arbitrary<'a> for Duration {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Self::new(
-            <u64 as Arbitrary>::arbitrary(u)?,
+            u64::arbitrary(u)?,
             u.int_in_range(0..=999_999_999)?,
         ))
     }
@@ -570,15 +682,22 @@ impl<'a> Arbitrary<'a> for Duration {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
-            <u64 as Arbitrary>::size_hint(depth),
-            <u32 as Arbitrary>::size_hint(depth),
+            u64::size_hint(depth),
+            u32::size_hint(depth),
         )
+    }
+}
+
+impl<'a> Dearbitrary<'a> for Duration {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_secs().dearbitrary(builder);
+        self.subsec_nanos().dearbitrary(builder);
     }
 }
 
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
+        Ok(if u.arbitrary()? {
             Some(Arbitrary::arbitrary(u)?)
         } else {
             None
@@ -588,30 +707,59 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
-            <bool as Arbitrary>::size_hint(depth),
-            crate::size_hint::or((0, Some(0)), <A as Arbitrary>::size_hint(depth)),
+            bool::size_hint(depth),
+            crate::size_hint::or((0, Some(0)), A::size_hint(depth)),
         )
+    }
+}
+
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Option<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        match self {
+            Some(value) => {
+                true.dearbitrary(builder);
+                value.dearbitrary(builder);
+            }
+            None => {
+                false.dearbitrary(builder);
+            }
+        }
     }
 }
 
 impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for std::result::Result<A, B> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
-            Ok(<A as Arbitrary>::arbitrary(u)?)
+        Ok(if u.arbitrary()? {
+            Ok(A::arbitrary(u)?)
         } else {
-            Err(<B as Arbitrary>::arbitrary(u)?)
+            Err(B::arbitrary(u)?)
         })
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::and(
-            <bool as Arbitrary>::size_hint(depth),
+            bool::size_hint(depth),
             crate::size_hint::or(
-                <A as Arbitrary>::size_hint(depth),
-                <B as Arbitrary>::size_hint(depth),
+                A::size_hint(depth),
+                A::size_hint(depth),
             ),
         )
+    }
+}
+
+impl <'a, A: Dearbitrary<'a>, B: Dearbitrary<'a>> Dearbitrary<'a> for std::result::Result<A, B> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        match self {
+            Result::Ok(value) => {
+                true.dearbitrary(builder);
+                value.dearbitrary(builder);
+            }
+            Result::Err(value) => {
+                false.dearbitrary(builder);
+                value.dearbitrary(builder);
+            }
+        }
     }
 }
 
@@ -635,9 +783,15 @@ macro_rules! arbitrary_tuple {
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
                 crate::size_hint::and_all(&[
-                    <$last as Arbitrary>::size_hint(depth),
-                    $( <$xs as Arbitrary>::size_hint(depth) ),*
+                    <$last>::size_hint(depth),
+                    $( <$xs>::size_hint(depth) ),*
                 ])
+            }
+        }
+
+        impl<'a, $($xs: Dearbitrary<'a>,)* $last: Dearbitrary<'a>> Dearbitrary<'a> for ($($xs,)* $last,) {
+            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+                unimplemented!()
             }
         }
     };
@@ -703,8 +857,17 @@ where
     #[inline]
     fn size_hint(d: usize) -> (usize, Option<usize>) {
         crate::size_hint::and_all(&array::from_fn::<_, N, _>(|_| {
-            <T as Arbitrary>::size_hint(d)
+            T::size_hint(d)
         }))
+    }
+}
+
+impl<'a, T, const N: usize> Dearbitrary<'a> for [T; N]
+where
+    T: Dearbitrary<'a>,
+{
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        unimplemented!()
     }
 }
 
@@ -724,6 +887,13 @@ impl<'a> Arbitrary<'a> for &'a [u8] {
     }
 }
 
+impl<'a> Dearbitrary<'a> for &'a [u8] {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_front_from_slice(self);
+        builder.extend_back(self.len())
+    }
+}
+
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -736,6 +906,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Vec<A> {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, None)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for Vec<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().cloned());
     }
 }
 
@@ -754,6 +930,12 @@ impl<'a, K: Arbitrary<'a> + Ord, V: Arbitrary<'a>> Arbitrary<'a> for BTreeMap<K,
     }
 }
 
+impl <'a, K: Dearbitrary<'a> + Ord + Clone, V: Dearbitrary<'a> + Clone> Dearbitrary<'a> for BTreeMap<K, V> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+}
+
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -766,6 +948,12 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BTreeSet<A> {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, None)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a> + Ord + Clone> Dearbitrary<'a> for BTreeSet<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().cloned());
     }
 }
 
@@ -788,6 +976,24 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Bound<A> {
     }
 }
 
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Bound<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        match self {
+            Bound::Included(value) => {
+                (0 as u8).dearbitrary(builder);
+                value.dearbitrary(builder);
+            }
+            Bound::Excluded(value) => {
+                (1 as u8).dearbitrary(builder);
+                value.dearbitrary(builder);
+            },
+            Bound::Unbounded => {
+                (2 as u8).dearbitrary(builder);
+            }
+        }
+    }
+}
+
 impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
@@ -800,6 +1006,12 @@ impl<'a, A: Arbitrary<'a> + Ord> Arbitrary<'a> for BinaryHeap<A> {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, None)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a> + Ord + Clone> Dearbitrary<'a> for BinaryHeap<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().cloned());
     }
 }
 
@@ -820,6 +1032,14 @@ impl<'a, K: Arbitrary<'a> + Eq + ::std::hash::Hash, V: Arbitrary<'a>, S: BuildHa
     }
 }
 
+impl<'a, K: Dearbitrary<'a> + Eq + Clone + ::std::hash::Hash, V: Dearbitrary<'a> + Clone, S: BuildHasher + Default>
+    Dearbitrary<'a> for HashMap<K, V, S>
+{
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+}
+
 impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Arbitrary<'a>
     for HashSet<A, S>
 {
@@ -834,6 +1054,14 @@ impl<'a, A: Arbitrary<'a> + Eq + ::std::hash::Hash, S: BuildHasher + Default> Ar
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, None)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a> + Eq + Clone + ::std::hash::Hash, S: BuildHasher + Default> Dearbitrary<'a>
+    for HashSet<A, S>
+{
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().cloned());
     }
 }
 
@@ -852,7 +1080,13 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for LinkedList<A> {
     }
 }
 
-impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
+impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for LinkedList<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().cloned());
+    }
+}
+
+impl<'a, A: Arbitrary<'a> + Clone> Arbitrary<'a> for VecDeque<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary_iter()?.collect()
     }
@@ -864,6 +1098,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for VecDeque<A> {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, None)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a> + Clone> Dearbitrary<'a> for VecDeque<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.iter().cloned()); 
     }
 }
 
@@ -879,8 +1119,18 @@ where
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         crate::size_hint::recursion_guard(depth, |depth| {
-            <<A as ToOwned>::Owned as Arbitrary>::size_hint(depth)
+            A::Owned::size_hint(depth)
         })
+    }
+}
+
+impl<'a, A> Dearbitrary<'a> for Cow<'a, A>
+where
+    A: ToOwned + ?Sized,
+    <A as ToOwned>::Owned: Dearbitrary<'a>,
+{
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.clone().into_owned().dearbitrary(builder);
     }
 }
 
@@ -919,24 +1169,36 @@ impl<'a> Arbitrary<'a> for &'a str {
     }
 }
 
+impl<'a> Dearbitrary<'a> for &'a str {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_bytes().dearbitrary(builder);
+    }
+}
+
 impl<'a> Arbitrary<'a> for String {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <&str as Arbitrary>::arbitrary(u).map(Into::into)
+        <&str>::arbitrary(u).map(Into::into)
     }
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
-        <&str as Arbitrary>::arbitrary_take_rest(u).map(Into::into)
+        <&str>::arbitrary_take_rest(u).map(Into::into)
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+        <&str>::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for String {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_str().dearbitrary(builder);
     }
 }
 
 impl<'a> Arbitrary<'a> for CString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <Vec<u8> as Arbitrary>::arbitrary(u).map(|mut x| {
+        <Vec<u8>>::arbitrary(u).map(|mut x| {
             x.retain(|&c| c != 0);
             // SAFETY: all zero bytes have been removed
             unsafe { Self::from_vec_unchecked(x) }
@@ -945,29 +1207,47 @@ impl<'a> Arbitrary<'a> for CString {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <Vec<u8> as Arbitrary>::size_hint(depth)
+        <Vec<u8>>::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for CString {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_bytes().dearbitrary(builder);
     }
 }
 
 impl<'a> Arbitrary<'a> for OsString {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <String as Arbitrary>::arbitrary(u).map(From::from)
+        String::arbitrary(u).map(From::from)
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint(depth)
+        String::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for OsString {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.clone().into_string()
     }
 }
 
 impl<'a> Arbitrary<'a> for PathBuf {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <OsString as Arbitrary>::arbitrary(u).map(From::from)
+        OsString::arbitrary(u).map(From::from)
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <OsString as Arbitrary>::size_hint(depth)
+        OsString::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for PathBuf {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.clone().into_os_string().dearbitrary(builder);
     }
 }
 
@@ -978,7 +1258,13 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+        crate::size_hint::recursion_guard(depth, A::size_hint)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Box<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().clone().dearbitrary(builder);
     }
 }
 
@@ -997,14 +1283,26 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Box<[A]> {
     }
 }
 
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Box<[A]> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().clone()
+    }
+}
+
 impl<'a> Arbitrary<'a> for Box<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <String as Arbitrary>::arbitrary(u).map(|x| x.into_boxed_str())
+        String::arbitrary(u).map(|x| x.into_boxed_str())
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint(depth)
+        String::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for Box<str> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().dearbitrary(builder);
     }
 }
 
@@ -1028,7 +1326,13 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+        crate::size_hint::recursion_guard(depth, A::size_hint)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Arc<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().clone().dearbitrary(builder);
     }
 }
 
@@ -1047,14 +1351,26 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Arc<[A]> {
     }
 }
 
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Arc<[A]> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        builder.extend_from_dearbitrary_iter(self.as_ref().clone())
+    }
+}
+
 impl<'a> Arbitrary<'a> for Arc<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <&str as Arbitrary>::arbitrary(u).map(Into::into)
+        <&str>::arbitrary(u).map(Into::into)
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+        <&str>::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for Arc<str> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().clone().dearbitrary(builder);
     }
 }
 
@@ -1065,7 +1381,13 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<A> {
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        crate::size_hint::recursion_guard(depth, <A as Arbitrary>::size_hint)
+        crate::size_hint::recursion_guard(depth, A::size_hint)
+    }
+}
+
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Rc<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().clone().dearbitrary(builder);
     }
 }
 
@@ -1084,14 +1406,26 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Rc<[A]> {
     }
 }
 
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Rc<[A]> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        unimplemented!()
+    }
+}
+
 impl<'a> Arbitrary<'a> for Rc<str> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        <&str as Arbitrary>::arbitrary(u).map(Into::into)
+        <&str>::arbitrary(u).map(Into::into)
     }
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+        <&str>::size_hint(depth)
+    }
+}
+
+impl<'a> Dearbitrary<'a> for Rc<str> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.as_ref().clone().dearbitrary(builder);
     }
 }
 
@@ -1106,6 +1440,13 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Cell<A> {
     }
 }
 
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for Cell<A> {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        unimplemented!()
+    }
+}
+
+// Note: RefCell does not implement Dearbitrary
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for RefCell<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -1117,6 +1458,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for RefCell<A> {
     }
 }
 
+// Note: UnsafeCell does not implement Dearbitrary
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -1128,6 +1470,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for UnsafeCell<A> {
     }
 }
 
+// Note: Mutex does not implement Dearbitrary
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Mutex<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(Self::new)
@@ -1150,6 +1493,12 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for iter::Empty<A> {
     }
 }
 
+impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for iter::Empty<A> {
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
+        
+    }
+}
+
 impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(::std::marker::PhantomData)
@@ -1161,6 +1510,12 @@ impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     }
 }
 
+impl<'a, A: ?Sized> Dearbitrary<'a> for ::std::marker::PhantomData<A> {
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
+        
+    }
+}
+
 impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(::std::marker::PhantomPinned)
@@ -1169,6 +1524,12 @@ impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (0, Some(0))
+    }
+}
+
+impl<'a> Dearbitrary<'a> for ::std::marker::PhantomPinned {
+    fn dearbitrary(&self, _: &mut UnstructuredBuilder) {
+        
     }
 }
 
@@ -1187,7 +1548,7 @@ macro_rules! implement_nonzero_int {
     ($nonzero:ty, $int:ty) => {
         impl<'a> Arbitrary<'a> for $nonzero {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-                match Self::new(<$int as Arbitrary<'a>>::arbitrary(u)?) {
+                match Self::new(<$int>::arbitrary(u)?) {
                     Some(n) => Ok(n),
                     None => Err(Error::IncorrectFormat),
                 }
@@ -1196,6 +1557,12 @@ macro_rules! implement_nonzero_int {
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
                 <$int as Arbitrary<'a>>::size_hint(depth)
+            }
+        }
+
+        impl<'a> Dearbitrary<'a> for $nonzero {
+            fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+                self.get().dearbitrary(builder);
             }
         }
     };
@@ -1225,6 +1592,12 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
     }
 }
 
+impl<'a> Dearbitrary<'a> for Ipv4Addr {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        u32::dearbitrary(&self.to_bits(), builder)
+    }
+}
+
 impl<'a> Arbitrary<'a> for Ipv6Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Ipv6Addr::from(u128::arbitrary(u)?))
@@ -1233,6 +1606,12 @@ impl<'a> Arbitrary<'a> for Ipv6Addr {
     #[inline]
     fn size_hint(_depth: usize) -> (usize, Option<usize>) {
         (16, Some(16))
+    }
+}
+
+impl<'a> Dearbitrary<'a> for Ipv6Addr {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        u128::dearbitrary(&self.to_bits(), builder)
     }
 }
 
@@ -1253,6 +1632,21 @@ impl<'a> Arbitrary<'a> for IpAddr {
     }
 }
 
+impl<'a> Dearbitrary<'a> for IpAddr {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        match self {
+            IpAddr::V4(v4) => {
+                true.dearbitrary(builder);
+                v4.dearbitrary(builder);
+            }
+            IpAddr::V6(v6) => {
+                false.dearbitrary(builder);
+                v6.dearbitrary(builder);
+            }
+        }
+    }
+}
+
 impl<'a> Arbitrary<'a> for SocketAddrV4 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(SocketAddrV4::new(u.arbitrary()?, u.arbitrary()?))
@@ -1261,6 +1655,12 @@ impl<'a> Arbitrary<'a> for SocketAddrV4 {
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         size_hint::and(Ipv4Addr::size_hint(depth), u16::size_hint(depth))
+    }
+}
+impl<'a> Dearbitrary<'a> for SocketAddrV4 {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.ip().dearbitrary(builder);
+        self.port().dearbitrary(builder);
     }
 }
 
@@ -1286,6 +1686,15 @@ impl<'a> Arbitrary<'a> for SocketAddrV6 {
     }
 }
 
+impl<'a> Dearbitrary<'a> for SocketAddrV6 {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        self.ip().dearbitrary(builder);
+        self.port().dearbitrary(builder);
+        self.flowinfo().dearbitrary(builder);
+        self.scope_id().dearbitrary(builder);
+    }
+}
+
 impl<'a> Arbitrary<'a> for SocketAddr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         if u.arbitrary()? {
@@ -1303,6 +1712,21 @@ impl<'a> Arbitrary<'a> for SocketAddr {
                 SocketAddrV6::size_hint(depth),
             ),
         )
+    }
+}
+
+impl<'a> Dearbitrary<'a> for SocketAddr {
+    fn dearbitrary(&self, builder: &mut UnstructuredBuilder) {
+        match self {
+            SocketAddr::V4(v4) => {
+                true.dearbitrary(builder);
+                v4.dearbitrary(builder);
+            }
+            SocketAddr::V6(v6) => {
+                false.dearbitrary(builder);
+                v6.dearbitrary(builder);
+            }
+        }
     }
 }
 
@@ -1619,7 +2043,7 @@ mod test {
             (7, Some(7)),
             <(bool, u16, i32) as Arbitrary<'_>>::size_hint(0)
         );
-        assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
+        assert_eq!((1, None), <(u8, Vec<u8>)>::size_hint(0));
     }
 }
 
