@@ -8,7 +8,7 @@
 
 //! Wrappers around raw, unstructured bytes.
 
-use crate::{Arbitrary, Dearbitrary, Error, Result};
+use crate::{Arbitrary, Dearbitrary, Error, Result, DearbitraryResult};
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
 use std::{mem, ops};
@@ -291,21 +291,21 @@ impl<'a> Unstructured<'a> {
     /// assert!(-5_000 <= x);
     /// assert!(x <= -1_000);
     /// ```
-    pub fn int_in_range<T, const Bytes: usize>(&mut self, range: ops::RangeInclusive<T>) -> Result<T>
+    pub fn int_in_range<T, const BYTES: usize>(&mut self, range: ops::RangeInclusive<T>) -> Result<T>
     where
-        T: Int<Bytes>,
+        T: Int<BYTES>,
     {
         let (result, bytes_consumed) = Self::int_in_range_impl(range, self.data.iter().cloned())?;
         self.data = &self.data[bytes_consumed..];
         Ok(result)
     }
 
-    fn int_in_range_impl<T, const Bytes: usize>(
+    fn int_in_range_impl<T, const BYTES: usize>(
         range: ops::RangeInclusive<T>,
         bytes: impl Iterator<Item = u8> + ExactSizeIterator,
     ) -> Result<(T, usize)>
     where
-        T: Int<Bytes>,
+        T: Int<BYTES>,
     {
         let start = *range.start();
         let end = *range.end();
@@ -334,17 +334,17 @@ impl<'a> Unstructured<'a> {
         // clamping that int into our range bounds with a modulo operation.
 
         let max_consumable_bytes = std::cmp::min(
-            Bytes,
+            BYTES,
             delta.min_representable_bytes() as usize
         );
 
         let taken_bytes = bytes.take(max_consumable_bytes).collect::<Vec<_>>();
 
-        let mut byte_slice = [0u8; Bytes];
+        let mut byte_slice = [0u8; BYTES];
         // never panics as consumed_slice.len() is always <= Bytes
         byte_slice[0..taken_bytes.len()].copy_from_slice(&taken_bytes);
 
-        let arbitrary_int = T::Unsigned::from_be_bytes(byte_slice);
+        let arbitrary_int = T::Unsigned::from_le_bytes(byte_slice);
 
         let offset = if delta == T::Unsigned::MAX {
             arbitrary_int
@@ -508,9 +508,9 @@ impl<'a> Unstructured<'a> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn ratio<T, const Bytes: usize>(&mut self, numerator: T, denominator: T) -> Result<bool>
+    pub fn ratio<T, const BYTES: usize>(&mut self, numerator: T, denominator: T) -> Result<bool>
     where
-        T: Int<Bytes>,
+        T: Int<BYTES>,
     {
         assert!(T::ZERO < numerator);
         assert!(numerator <= denominator);
@@ -737,12 +737,15 @@ impl<'a> Unstructured<'a> {
     }
 }
 
+/// An intermediatery building struct for building an [Unstructured]
+/// from [Dearbitary]-implementing objects.
 pub struct UnstructuredBuilder {
     front: Vec<u8>,
     back: Vec<u8>
 }
 
 impl UnstructuredBuilder {
+    /// Constructs an empty [UnstructuredBuilder]
     pub fn new() -> Self {
         UnstructuredBuilder {
             front: vec![],
@@ -750,61 +753,87 @@ impl UnstructuredBuilder {
         }
     }
 
+    /// Pushes a byte to the front of the unstructured value.
     pub fn push_front(&mut self, value: u8) {
         self.front.push(value);
     }
 
+    /// Extends the front by an iterator.
+    /// 
+    #[doc = include_str!("reverse_note.md")]
     pub fn extend_front<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
         self.front.extend(iter);
     }
 
+    /// Dearbitratates every value inside the passed iterator.
+    /// 
+    #[doc = include_str!("reverse_note.md")]
     pub fn extend_from_dearbitrary_iter<
         'a,
         A: Dearbitrary<'a>,
         T: IntoIterator<Item = A>
-    >(&mut self, iter: T) {
+    >(&mut self, iter: T) -> DearbitraryResult<()> {
         for value in iter {
-            value.dearbitrary(self);
+            value.dearbitrary(self)?;
         }
+        Ok(())
     }
 
+    /// Dearbitrates every value in inside the passed iterator in reverse.
+    /// 
+    /// This is generally what you would want to do, as the front is later reversed
+    /// to mimic how this structure would usually be when not built backwards.
     pub fn extend_from_dearbitrary_iter_rev<
         'a,
         A: Dearbitrary<'a>,
         T: IntoIterator<Item = A, IntoIter = impl DoubleEndedIterator<Item = A>>
-    >(&mut self, iter: T) {
+    >(&mut self, iter: T) -> DearbitraryResult<()> {
         for value in iter.into_iter().rev() {
-            value.dearbitrary(self);
+            value.dearbitrary(self)?;
         }
+        Ok(())
     }
 
+    /// Extends the front from a slice.
+    /// 
+    #[doc = include_str!("reverse_note.md")]
     pub fn extend_front_from_slice(&mut self, other: &[u8]) {
         self.front.extend_from_slice(other);
     }
 
+    /// Pushes a byte to the back of the [UnstructuredBuilder].
+    /// 
+    #[doc = include_str!("back_note.md")]
     pub fn push_back(&mut self, value: u8) {
         self.back.push(value);
     }
 
+    /// Extends the back by some iterator.
+    /// 
+    #[doc = include_str!("back_note.md")]
     pub fn extend_back<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
         self.back.extend(iter);
     }
 
+    /// Extends the back by some slice of bytes.
+    #[doc = include_str!("back_note.md")]
     pub fn extend_back_from_slice(&mut self, other: &[u8]) {
         self.back.extend_from_slice(other);
     }
 
+    /// Adds an dearbitratable iterator to this `UnstructuredBuilder`,
+    /// along with its length information.
     pub fn extend_from_dearbitrary_iter_rev_with_length<'a, A, T>(
         &mut self, 
         iter: T
-    )
+    ) -> DearbitraryResult<()>
     where
         A: Dearbitrary<'a>,
         T: DoubleEndedIterator<Item = A> + ExactSizeIterator<Item = A>
     {
         let iter_length = iter.len();
         
-        self.extend_from_dearbitrary_iter_rev(iter);
+        self.extend_from_dearbitrary_iter_rev(iter)?;
 
         // Determine the amount of bytes we need to pretend to encode the max amount of possible
         // items in here; This mimics behavior found in `Unstructured::arbitrary_byte_size`.
@@ -827,16 +856,21 @@ impl UnstructuredBuilder {
         let elem_size = std::cmp::max(1, elem_size);
         let byte_size = iter_length * elem_size;
 
-        self.back_bytes_from_constrained_int::<u64, 8>(0..=max_size as u64, byte_size as u64)
+        self.back_bytes_from_constrained_int::<u64, 8>(0..=max_size as u64, byte_size as u64);
+
+        Ok(())
     }
 
     /// This is the logical inverse of Unstructured::int_in_range_impl.
-    fn bytes_from_constrained_int<T, const Bytes: usize>(
+    /// 
+    /// It converts a number and its constrained range to the smallest representable
+    /// slice of bytes in big endian order.
+    fn bytes_from_constrained_int<T, const BYTES: usize>(
         range: ops::RangeInclusive<T>,
         int: T
     ) -> Vec<u8>
     where 
-        T: Int<Bytes> + core::fmt::Debug,
+        T: Int<BYTES> + core::fmt::Debug,
     {
         let start = *range.start();
         let end = *range.end();
@@ -862,42 +896,57 @@ impl UnstructuredBuilder {
         debug_assert_ne!(delta, T::Unsigned::ZERO);
 
         // start from the end - we need an unsigned number
-        let int = T::to_unsigned(int);
+        let int = int.to_unsigned();
         // offset lossly equals arbitrary_int (offset = arbitrary_int % (delta + 1), remainder information is lost)
         let arbitrary_int = int.wrapping_sub(start);
 
-        arbitrary_int.to_be_bytes()[0..(arbitrary_int.min_representable_bytes() as usize * 8)].to_vec()
+        arbitrary_int.to_le_bytes()[0..arbitrary_int.min_representable_bytes() as usize].to_vec()
     }
 
-    pub fn front_bytes_from_constrained_int<T, const Bytes: usize>(
+    /// Extends the front by some integer clasped to a range.
+    /// 
+    /// This is the inverse of [Unstructured::int_in_range].
+    pub fn front_bytes_from_constrained_int<T, const BYTES: usize>(
         &mut self,
         range: ops::RangeInclusive<T>,
         int: T
     )
     where
-        T: Int<Bytes> + core::fmt::Debug
+        T: Int<BYTES> + core::fmt::Debug
     {
         let bytes = Self::bytes_from_constrained_int(range, int);
         self.extend_front(bytes);
     }
 
-    pub fn back_bytes_from_constrained_int<T, const Bytes: usize>(
+    /// Extends the back by some integer clasped to a range.
+    /// 
+    /// This is the inverse of [Unstructured::int_in_range],
+    /// generally for encoding length information.
+    /// 
+    /// See [UnstructuredBuilder::extend_from_dearbitrary_iter_rev_with_length].
+    pub fn back_bytes_from_constrained_int<T, const BYTES: usize>(
         &mut self,
         range: ops::RangeInclusive<T>,
         int: T
     )
     where
-        T: Int<Bytes> + core::fmt::Debug
+        T: Int<BYTES> + core::fmt::Debug
     {
         let mut bytes = Self::bytes_from_constrained_int(range, int);
         bytes.reverse();
         self.extend_back(bytes);
     }
 
+    /// Gets the current amount of bytes inside this `UnstructuredBuilder`.
+    /// 
+    /// Length is a combination of both sides of this builder.
     pub fn len(&self) -> usize {
         self.front.len() + self.back.len()
     }
 
+    /// Collects and converts this instance into an owned `Vec<u8>`.
+    /// This can be later be turned back into [Unstructured] or used
+    /// for corpus generation purposes.
     pub fn collect(mut self) -> Vec<u8> {
         self.front.reverse();
         self.front.extend(self.back);
@@ -960,7 +1009,7 @@ impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryTakeRestIter<'a, Elem
 /// 
 /// The `Bytes` generic defines how many bytes this number would take in the
 /// worst possible case platform. `usize`
-pub trait Int<const Bytes: usize>:
+pub trait Int<const BYTES: usize>:
     Copy
     + std::fmt::Debug
     + PartialOrd
@@ -972,7 +1021,7 @@ pub trait Int<const Bytes: usize>:
     + ops::BitOr<Self, Output = Self>
 {
     #[doc(hidden)]
-    type Unsigned: Int<Bytes>;
+    type Unsigned: Int<BYTES>;
 
     #[doc(hidden)]
     const ZERO: Self;
@@ -1005,10 +1054,10 @@ pub trait Int<const Bytes: usize>:
     fn from_unsigned(unsigned: Self::Unsigned) -> Self;
 
     #[doc(hidden)]
-    fn from_be_bytes(bytes: [u8; Bytes]) -> Self;
+    fn from_le_bytes(bytes: [u8; BYTES]) -> Self;
 
     #[doc(hidden)]
-    fn to_be_bytes(self) -> [u8; Bytes];
+    fn to_le_bytes(self) -> [u8; BYTES];
 
     #[doc(hidden)]
     fn min_representable_bytes(self) -> u32;
@@ -1054,15 +1103,17 @@ macro_rules! impl_int {
                     unsigned as Self
                 }
 
-                fn from_be_bytes(bytes: [u8; $bytes]) -> Self {
-                    <$ty>::from_be_bytes(bytes)
+                fn from_le_bytes(bytes: [u8; $bytes]) -> Self {
+                    <$ty>::from_le_bytes(bytes)
                 }
 
-                fn to_be_bytes(self) -> [u8; $bytes] {
-                    <$ty>::to_be_bytes(self)
+                fn to_le_bytes(self) -> [u8; $bytes] {
+                    <$ty>::to_le_bytes(self)
                 }
 
                 fn min_representable_bytes(self) -> u32 {
+                    // 0 as a number still needs to be represented by one byte for fuzzing
+                    if self == 0 { return 1 };
                     (<$ty>::ilog2(self) + 1).div_ceil(8)
                 }
             }
@@ -1111,6 +1162,11 @@ mod tests {
         assert_eq!(x, 0);
         let choice = *u.choose(&[42]).unwrap();
         assert_eq!(choice, 42)
+    }
+
+    #[test]
+    fn min_representable_bytes_in_bigger_size() {
+        assert_eq!(1, (u8::MAX as u16).min_representable_bytes());
     }
 
     #[test]
@@ -1232,4 +1288,32 @@ mod tests {
             assert!(covered, "narrow[{}] should have been generated", i);
         }
     }
+    
+}
+
+#[cfg(kani)]
+mod kani_suite {
+    use crate::UnstructuredBuilder;
+    use crate::Unstructured;
+
+    macro_rules! generate_int_check {
+        ($type:ty, $f:ident) => {
+            #[kani::proof]
+            #[kani::unwind(30)]
+            fn $f() {
+                let first_number: $type = kani::any();
+                let last_number: $type = kani::any();
+                kani::assume(last_number >= first_number);
+                let int: $type = kani::any();
+                kani::assume(int >= first_number && int <= last_number);
+                let range = first_number..=last_number;
+                let bytes = UnstructuredBuilder::bytes_from_constrained_int(range.clone(), int);
+                let generated_int = Unstructured::int_in_range_impl(range.clone(), bytes.iter().copied()).unwrap().0;
+                assert_eq!(generated_int, int);
+            }
+        }
+    }
+
+    generate_int_check!(u8, test_u8);
+    generate_int_check!(u16, test_u16);
 }
