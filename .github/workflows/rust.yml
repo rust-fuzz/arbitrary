@@ -25,6 +25,13 @@ jobs:
       run: cargo test --verbose --all-features --all
     - name: Build Examples
       run: cargo build --examples --all-features --all
+  kani:
+    name: Kani Verification
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: rustup update
+    - uses: model-checking/kani-github-action
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

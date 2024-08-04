@@ -40,3 +40,9 @@ members = ["./fuzz"]
 
 [dev-dependencies]
 exhaustigen = "0.1.0"
+
+[target.'cfg(kani)'.dependencies]
+paste = "1.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

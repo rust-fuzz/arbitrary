@@ -12,27 +12,27 @@ fn fuzz(data: &[u8]) -> Result<()> {
     let mut u = Unstructured::new(data);
 
     let choices = [
-        assert_in_range::<u8>,
-        assert_in_range::<i8>,
-        assert_in_range::<u16>,
-        assert_in_range::<i16>,
-        assert_in_range::<u32>,
-        assert_in_range::<i32>,
-        assert_in_range::<u64>,
-        assert_in_range::<i64>,
-        assert_in_range::<u64>,
-        assert_in_range::<i64>,
-        assert_in_range::<u128>,
-        assert_in_range::<i128>,
+        assert_in_range::<u8, 1>,
+        assert_in_range::<i8, 1>,
+        assert_in_range::<u16, 2>,
+        assert_in_range::<i16, 2>,
+        assert_in_range::<u32, 4>,
+        assert_in_range::<i32, 4>,
+        assert_in_range::<u64, 8>,
+        assert_in_range::<i64, 8>,
+        assert_in_range::<u64, 8>,
+        assert_in_range::<i64, 8>,
+        assert_in_range::<u128, 16>,
+        assert_in_range::<i128, 16>,
     ];
 
     let f = u.choose(&choices[..])?;
     f(&mut u)
 }
 
-fn assert_in_range<'a, 'b, T>(u: &'a mut Unstructured<'b>) -> Result<()>
+fn assert_in_range<'a, 'b, T, const BYTES: usize>(u: &'a mut Unstructured<'b>) -> Result<()>
 where
-    T: Arbitrary<'b> + Int + Display,
+    T: Arbitrary<'b> + Int<BYTES> + Display,
 {
     let range = RangeInclusive::<T>::arbitrary(u)?;
     let start = *range.start();
