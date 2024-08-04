@@ -352,6 +352,35 @@ macro_rules! kani_dearbitrary {
     };
 }
 
+/// Macro that automatically derives some kani proof.
+/// Only works for non-generic types.
+/// Ensures that there is one-to-one between the byte representation and the type.
+#[cfg(kani)]
+macro_rules! kani_dearbitrary_lossless {
+    ($tt:tt : $ident:ident) => {
+        paste::paste! {
+            #[kani::proof]
+            #[kani::unwind(10)]
+            fn [< prove_dearbitrary_ $ident >]() {
+                let instance: $tt = kani::any();
+                let bytes = {
+                    let mut builder = UnstructuredBuilder::new();
+                    instance.dearbitrary(&mut builder).expect("Failure on instance dearbitration");
+                    builder.collect()
+                };
+                let new_bytes = {
+                    let mut unstructured = Unstructured::new(&bytes);
+                    let new_instance = <$tt>::arbitrary(&mut unstructured).expect("Failure on rearbitration");
+                    let mut builder = UnstructuredBuilder::new();
+                    new_instance.dearbitrary(&mut builder).expect("Failure on new_instance dearbitration");
+                    builder.collect()
+                };
+                assert_eq!(bytes, new_bytes);
+            }
+        }
+    };
+}
+
 impl<'a> Arbitrary<'a> for () {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(())
@@ -370,7 +399,7 @@ impl<'a> Dearbitrary<'a> for () {
 }
 
 #[cfg(kani)]
-kani_dearbitrary!(() : empty);
+kani_dearbitrary_lossless!(() : empty);
 
 impl<'a> Arbitrary<'a> for bool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -459,7 +488,7 @@ impl<'a> Dearbitrary<'a> for usize {
 }
 
 #[cfg(kani)]
-kani_dearbitrary!(usize : usize);
+kani_dearbitrary_lossless!(usize : usize);
 
 impl<'a> Arbitrary<'a> for isize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -479,7 +508,7 @@ impl<'a> Dearbitrary<'a> for isize {
 }
 
 #[cfg(kani)]
-kani_dearbitrary!(isize : isize);
+kani_dearbitrary_lossless!(isize : isize);
 
 macro_rules! impl_all_arbitrary_for_floats {
     ( $( $ty:ident : $unsigned:ty; )* ) => {
@@ -502,7 +531,7 @@ macro_rules! impl_all_arbitrary_for_floats {
             }
 
             #[cfg(kani)]
-            kani_dearbitrary!($ty : $ty);
+            kani_dearbitrary_lossless!($ty : $ty);
         )*
     }
 }
@@ -543,7 +572,7 @@ impl<'a> Dearbitrary<'a> for char {
 }
 
 #[cfg(kani)]
-kani_dearbitrary!(char : char);
+kani_dearbitrary_lossless!(char : char);
 
 // Note: We don't derive Dearbitrary for any atomics
 // because of having to specify the precise order to retrieve
@@ -1517,6 +1546,9 @@ impl<'a, A: Dearbitrary<'a>> Dearbitrary<'a> for iter::Empty<A> {
     }
 }
 
+// #[cfg(kani)]
+// kani_dearbitrary!(iter::Empty : empty);
+
 impl<'a, A: ?Sized> Arbitrary<'a> for ::std::marker::PhantomData<A> {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(::std::marker::PhantomData)
@@ -1533,6 +1565,9 @@ impl<'a, A: ?Sized> Dearbitrary<'a> for ::std::marker::PhantomData<A> {
         Ok(())
     }
 }
+
+// #[cfg(kani)]
+// kani_dearbitrary!(::std::marker::PhantomData : phantom_data);
 
 impl<'a> Arbitrary<'a> for ::std::marker::PhantomPinned {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
@@ -1551,6 +1586,9 @@ impl<'a> Dearbitrary<'a> for ::std::marker::PhantomPinned {
     }
 }
 
+// #[cfg(kani)]
+// kani_dearbitrary!(::std::marker::PhantomPinned : phantom_pinned);
+
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Arbitrary::arbitrary(u).map(::std::num::Wrapping)
@@ -1563,7 +1601,7 @@ impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for ::std::num::Wrapping<A> {
 }
 
 macro_rules! implement_nonzero_int {
-    ($nonzero:ty, $int:ty) => {
+    ($nonzero:ty, $int:ty, $ident:ident) => {
         impl<'a> Arbitrary<'a> for $nonzero {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
                 match Self::new(<$int>::arbitrary(u)?) {
@@ -1583,21 +1621,24 @@ macro_rules! implement_nonzero_int {
                 self.get().dearbitrary(builder)
             }
         }
+
+        #[cfg(kani)]
+        kani_dearbitrary!($nonzero : $ident);
     };
 }
 
-implement_nonzero_int! { NonZeroI8, i8 }
-implement_nonzero_int! { NonZeroI16, i16 }
-implement_nonzero_int! { NonZeroI32, i32 }
-implement_nonzero_int! { NonZeroI64, i64 }
-implement_nonzero_int! { NonZeroI128, i128 }
-implement_nonzero_int! { NonZeroIsize, isize }
-implement_nonzero_int! { NonZeroU8, u8 }
-implement_nonzero_int! { NonZeroU16, u16 }
-implement_nonzero_int! { NonZeroU32, u32 }
-implement_nonzero_int! { NonZeroU64, u64 }
-implement_nonzero_int! { NonZeroU128, u128 }
-implement_nonzero_int! { NonZeroUsize, usize }
+implement_nonzero_int! { NonZeroI8, i8, nonzero_i8 }
+implement_nonzero_int! { NonZeroI16, i16, nonzero_i16 }
+implement_nonzero_int! { NonZeroI32, i32, nonzero_i32 }
+implement_nonzero_int! { NonZeroI64, i64, nonzero_i64 }
+implement_nonzero_int! { NonZeroI128, i128, nonzero_i128 }
+implement_nonzero_int! { NonZeroIsize, isize, nonzero_isize }
+implement_nonzero_int! { NonZeroU8, u8, nonzero_u8 }
+implement_nonzero_int! { NonZeroU16, u16, nonzero_u16 }
+implement_nonzero_int! { NonZeroU32, u32, nonzero_u32 }
+implement_nonzero_int! { NonZeroU64, u64, nonzero_u64 }
+implement_nonzero_int! { NonZeroU128, u128, nonzero_u128 }
+implement_nonzero_int! { NonZeroUsize, usize, nonzero_usize }
 
 impl<'a> Arbitrary<'a> for Ipv4Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -1616,6 +1657,9 @@ impl<'a> Dearbitrary<'a> for Ipv4Addr {
     }
 }
 
+// #[cfg(kani)]
+// kani_dearbitrary!(Ipv4Addr : ipv4_addr);
+
 impl<'a> Arbitrary<'a> for Ipv6Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Ipv6Addr::from(u128::arbitrary(u)?))
@@ -1632,6 +1676,9 @@ impl<'a> Dearbitrary<'a> for Ipv6Addr {
         u128::dearbitrary(&self.to_bits(), builder)
     }
 }
+
+// #[cfg(kani)]
+// kani_dearbitrary!(Ipv6Addr : ipv6_addr);
 
 impl<'a> Arbitrary<'a> for IpAddr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -1665,6 +1712,9 @@ impl<'a> Dearbitrary<'a> for IpAddr {
     }
 }
 
+// #[cfg(kani)]
+// kani_dearbitrary!(IpAddr : ip_addr);
+
 impl<'a> Arbitrary<'a> for SocketAddrV4 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(SocketAddrV4::new(u.arbitrary()?, u.arbitrary()?))
@@ -1681,6 +1731,9 @@ impl<'a> Dearbitrary<'a> for SocketAddrV4 {
         self.ip().dearbitrary(builder)
     }
 }
+
+// #[cfg(kani)]
+// kani_dearbitrary!(SocketAddrV4 : socket_addr_v4);
 
 impl<'a> Arbitrary<'a> for SocketAddrV6 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -1712,6 +1765,9 @@ impl<'a> Dearbitrary<'a> for SocketAddrV6 {
         self.ip().dearbitrary(builder)
     }
 }
+
+// #[cfg(kani)]
+// kani_dearbitrary!(SocketAddrV4 : socket_addr_v6);
 
 impl<'a> Arbitrary<'a> for SocketAddr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -1747,6 +1803,9 @@ impl<'a> Dearbitrary<'a> for SocketAddr {
         }
     }
 }
+
+// #[cfg(kani)]
+// kani_dearbitrary!(SocketAddr : socket_addr);
 
 #[cfg(test)]
 mod test {
