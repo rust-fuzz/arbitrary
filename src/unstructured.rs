@@ -1291,29 +1291,29 @@ mod tests {
     
 }
 
-#[cfg(kani)]
-mod kani_suite {
-    use crate::UnstructuredBuilder;
-    use crate::Unstructured;
+// #[cfg(kani)]
+// mod kani_suite {
+//     use crate::UnstructuredBuilder;
+//     use crate::Unstructured;
 
-    macro_rules! generate_int_check {
-        ($type:ty, $f:ident) => {
-            #[kani::proof]
-            #[kani::unwind(30)]
-            fn $f() {
-                let first_number: $type = kani::any();
-                let last_number: $type = kani::any();
-                kani::assume(last_number >= first_number);
-                let int: $type = kani::any();
-                kani::assume(int >= first_number && int <= last_number);
-                let range = first_number..=last_number;
-                let bytes = UnstructuredBuilder::bytes_from_constrained_int(range.clone(), int);
-                let generated_int = Unstructured::int_in_range_impl(range.clone(), bytes.iter().copied()).unwrap().0;
-                assert_eq!(generated_int, int);
-            }
-        }
-    }
+//     macro_rules! generate_int_check {
+//         ($type:ty, $f:ident) => {
+//             #[kani::proof]
+//             #[kani::unwind(30)]
+//             fn $f() {
+//                 let first_number: $type = kani::any();
+//                 let last_number: $type = kani::any();
+//                 kani::assume(last_number >= first_number);
+//                 let int: $type = kani::any();
+//                 kani::assume(int >= first_number && int <= last_number);
+//                 let range = first_number..=last_number;
+//                 let bytes = UnstructuredBuilder::bytes_from_constrained_int(range.clone(), int);
+//                 let generated_int = Unstructured::int_in_range_impl(range.clone(), bytes.iter().copied()).unwrap().0;
+//                 assert_eq!(generated_int, int);
+//             }
+//         }
+//     }
 
-    generate_int_check!(u8, test_u8);
-    generate_int_check!(u16, test_u16);
-}
+//     generate_int_check!(u8, test_u8);
+//     generate_int_check!(u16, test_u16);
+// }

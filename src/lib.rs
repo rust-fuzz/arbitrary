@@ -331,6 +331,27 @@ pub trait Dearbitrary<'a>: Arbitrary<'a> {
     fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()>;
 }
 
+/// Macro that automatically derives some kani proof.
+/// Only works for non-generic types.
+#[cfg(kani)]
+macro_rules! kani_dearbitrary {
+    ($tt:tt : $ident:ident) => {
+        paste::paste! {
+            #[kani::proof]
+            #[kani::unwind(10)]
+            fn [< prove_dearbitrary_ $ident >]() {
+                let instance: $tt = kani::any();
+                let mut builder = UnstructuredBuilder::new();
+                instance.dearbitrary(&mut builder).expect("Failure on dearbitration");
+                let bytes = builder.collect();
+                let mut unstructured = Unstructured::new(&bytes);
+                let new_instance = <$tt>::arbitrary(&mut unstructured).expect("Failure on rearbitration");
+                assert_eq!(instance, new_instance);
+            }
+        }
+    };
+}
+
 impl<'a> Arbitrary<'a> for () {
     fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
         Ok(())
@@ -347,6 +368,9 @@ impl<'a> Dearbitrary<'a> for () {
         Ok(())
     }
 }
+
+#[cfg(kani)]
+kani_dearbitrary!(() : empty);
 
 impl<'a> Arbitrary<'a> for bool {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -365,8 +389,11 @@ impl<'a> Dearbitrary<'a> for bool {
     }
 }
 
+#[cfg(kani)]
+kani_dearbitrary!(bool : bool);
+
 macro_rules! impl_all_arbitrary_for_integers {
-    ( $( $ty:ty; )* ) => {
+    ( $( $ty:ty : $ident:ident; )* ) => {
         $(
             impl<'a> Arbitrary<'a> for $ty {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -385,25 +412,30 @@ macro_rules! impl_all_arbitrary_for_integers {
 
             impl<'a> Dearbitrary<'a> for $ty {
                 fn dearbitrary(&self, builder: &mut UnstructuredBuilder) -> DearbitraryResult<()> {
-                    builder.extend_front_from_slice(&self.to_le_bytes());
+                    // be_bytes is in inverse order of le_bytes, and lets us take advantage
+                    // of any platform optimizations
+                    builder.extend_front_from_slice(&self.to_be_bytes());
                     Ok(())
                 }
             }
+
+            #[cfg(kani)]
+            kani_dearbitrary!($ty : $ident);
         )*
     }
 }
 
 impl_all_arbitrary_for_integers! {
-    u8;
-    u16;
-    u32;
-    u64;
-    u128;
-    i8;
-    i16;
-    i32;
-    i64;
-    i128;
+    u8 : u8;
+    u16 : u16;
+    u32 : u32;
+    u64 : u64;
+    u128 : u128;
+    i8 : i8;
+    i16 : i16;
+    i32 : i32;
+    i64 : i64;
+    i128 : i128;
 }
 
 // Note: We forward (De)arbitrary for i/usize to i/u64 in order to simplify corpus
@@ -426,6 +458,9 @@ impl<'a> Dearbitrary<'a> for usize {
     }
 }
 
+#[cfg(kani)]
+kani_dearbitrary!(usize : usize);
+
 impl<'a> Arbitrary<'a> for isize {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         u.arbitrary::<i64>().map(|x| x as isize)
@@ -443,12 +478,15 @@ impl<'a> Dearbitrary<'a> for isize {
     }
 }
 
+#[cfg(kani)]
+kani_dearbitrary!(isize : isize);
+
 macro_rules! impl_all_arbitrary_for_floats {
     ( $( $ty:ident : $unsigned:ty; )* ) => {
         $(
             impl<'a> Arbitrary<'a> for $ty {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-                    Ok(Self::from_bits(<$unsigned as Arbitrary<'a>>::arbitrary(u)?))
+                    Ok(Self::from_bits(<$unsigned>::arbitrary(u)?))
                 }
 
                 #[inline]
@@ -462,6 +500,9 @@ macro_rules! impl_all_arbitrary_for_floats {
                     <$unsigned>::dearbitrary(&self.to_bits(), builder)
                 }
             }
+
+            #[cfg(kani)]
+            kani_dearbitrary!($ty : $ty);
         )*
     }
 }
@@ -500,6 +541,9 @@ impl<'a> Dearbitrary<'a> for char {
         (*self as u32).dearbitrary(builder)
     }
 }
+
+#[cfg(kani)]
+kani_dearbitrary!(char : char);
 
 // Note: We don't derive Dearbitrary for any atomics
 // because of having to specify the precise order to retrieve
@@ -658,6 +702,9 @@ impl<'a> Dearbitrary<'a> for Duration {
         self.as_secs().dearbitrary(builder)
     }
 }
+
+#[cfg(kani)]
+kani_dearbitrary!(Duration : duration);
 
 impl<'a, A: Arbitrary<'a>> Arbitrary<'a> for Option<A> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
