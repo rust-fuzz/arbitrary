@@ -34,7 +34,7 @@ pub use unstructured::Unstructured;
 
 mod dearbitrary;
 pub use dearbitrary::{Error as DearbitraryError, Result as DearbitraryResult};
-use unstructured::UnstructuredBuilder;
+pub use unstructured::UnstructuredBuilder;
 
 pub mod size_hint;
 

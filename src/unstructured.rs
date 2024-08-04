@@ -745,7 +745,15 @@ pub struct UnstructuredBuilder {
 }
 
 impl UnstructuredBuilder {
-    /// Constructs an empty [UnstructuredBuilder]
+    /// Constructs an empty [UnstructuredBuilder].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let b = UnstructuredBuilder::new();
+    /// ```
     pub fn new() -> Self {
         UnstructuredBuilder {
             front: vec![],
@@ -753,13 +761,52 @@ impl UnstructuredBuilder {
         }
     }
 
+    /// Constructs an [UnstructuredBuilder] with the given data.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let b = UnstructuredBuilder::new();
+    /// ```
+    pub fn new_with_vecs(front: Vec<u8>, back: Vec<u8>) -> Self {
+        Self {
+            front,
+            back
+        }
+    }
+
     /// Pushes a byte to the front of the unstructured value.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.push_front(15u8);
+    /// b.push_front(7u8);
+    /// assert_eq!(b.len(), 2);
+    /// ```
     pub fn push_front(&mut self, value: u8) {
         self.front.push(value);
     }
 
     /// Extends the front by an iterator.
     /// 
+    /// Since [UnstructuredBuilder]'s `front` works in reverse,
+    /// this iterator should be reversed from when it is usually arbitrated.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_front(1u8..5u8);
+    /// assert_eq!(b.len(), 4);
+    /// ```
     #[doc = include_str!("reverse_note.md")]
     pub fn extend_front<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
         self.front.extend(iter);
@@ -767,6 +814,20 @@ impl UnstructuredBuilder {
 
     /// Dearbitratates every value inside the passed iterator.
     /// 
+    /// Generally, you would want to use [UnstructuredBuilder::extend_from_dearbitrary_iter_rev]
+    /// to reverse the order of the passed iterator, unless this is already purposely in reverse
+    /// for optimization reasons.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_from_dearbitrary_iter([1u8, 2u8].iter().copied());
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![2, 1]);
+    /// ```
     #[doc = include_str!("reverse_note.md")]
     pub fn extend_from_dearbitrary_iter<
         'a,
@@ -783,6 +844,17 @@ impl UnstructuredBuilder {
     /// 
     /// This is generally what you would want to do, as the front is later reversed
     /// to mimic how this structure would usually be when not built backwards.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_from_dearbitrary_iter_rev([1u8, 2u8].iter().copied());
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![1, 2]);
+    /// ```
     pub fn extend_from_dearbitrary_iter_rev<
         'a,
         A: Dearbitrary<'a>,
@@ -796,6 +868,19 @@ impl UnstructuredBuilder {
 
     /// Extends the front from a slice.
     /// 
+    /// Since [UnstructuredBuilder]'s `front` works in reverse,
+    /// this slice should be reversed from when it is usually arbitrated.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_front_from_slice(&[1u8, 2u8]);
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![2, 1]);
+    /// ```
     #[doc = include_str!("reverse_note.md")]
     pub fn extend_front_from_slice(&mut self, other: &[u8]) {
         self.front.extend_from_slice(other);
@@ -804,18 +889,55 @@ impl UnstructuredBuilder {
     /// Pushes a byte to the back of the [UnstructuredBuilder].
     /// 
     #[doc = include_str!("back_note.md")]
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.push_front(1);
+    /// b.push_back(2);
+    /// b.push_front(3);
+    /// b.push_back(4);
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![3, 1, 2, 4]);
+    /// ```
     pub fn push_back(&mut self, value: u8) {
         self.back.push(value);
     }
 
     /// Extends the back by some iterator.
     /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_back(1u8..=3u8);
+    /// b.push_front(4);
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![4, 1, 2, 3]);
+    /// ```
     #[doc = include_str!("back_note.md")]
     pub fn extend_back<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
         self.back.extend(iter);
     }
 
     /// Extends the back by some slice of bytes.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_back_from_slice([1, 2, 3]);
+    /// b.push_front(4);
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![4, 1, 2, 3]);
+    /// ```
     #[doc = include_str!("back_note.md")]
     pub fn extend_back_from_slice(&mut self, other: &[u8]) {
         self.back.extend_from_slice(other);
@@ -906,6 +1028,26 @@ impl UnstructuredBuilder {
     /// Extends the front by some integer clasped to a range.
     /// 
     /// This is the inverse of [Unstructured::int_in_range].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut builder = UnstructuredBuilder::new();
+    /// builder.front_bytes_from_constrained_int(0..=u8::MAX, 5u8);
+    /// assert_eq!(builder.collect(), vec![5]);
+    /// 
+    /// let mut builder = UnstructuredBuilder::new();
+    /// builder.front_bytes_from_constrained_int(5..=20u8, 6u8);
+    /// assert_eq!(builder.collect(), vec![1]);
+    /// 
+    /// let mut builder = UnstructuredBuilder::new();
+    /// builder.front_bytes_from_constrained_int(1_000u32..=20_000u32, 2_500u32);
+    /// assert_eq!(builder.collect(), vec![5, 220]);
+    /// //
+    /// assert_eq!(u32::from_be_bytes([0u8, 0u8, 5u8, 220u8]), 1_500u32);
+    /// ```
     pub fn front_bytes_from_constrained_int<T, const BYTES: usize>(
         &mut self,
         range: ops::RangeInclusive<T>,
@@ -924,6 +1066,26 @@ impl UnstructuredBuilder {
     /// generally for encoding length information.
     /// 
     /// See [UnstructuredBuilder::extend_from_dearbitrary_iter_rev_with_length].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut builder = UnstructuredBuilder::new();
+    /// builder.back_bytes_from_constrained_int(0..=u8::MAX, 5u8);
+    /// assert_eq!(builder.collect(), vec![5]);
+    /// 
+    /// let mut builder = UnstructuredBuilder::new();
+    /// builder.back_bytes_from_constrained_int(5..=20u8, 6u8);
+    /// assert_eq!(builder.collect(), vec![1]);
+    /// 
+    /// let mut builder = UnstructuredBuilder::new();
+    /// builder.back_bytes_from_constrained_int(1_000u32..=20_000u32, 2_500u32);
+    /// assert_eq!(builder.collect(), vec![5, 220]);
+    /// //
+    /// assert_eq!(u32::from_be_bytes([0u8, 0u8, 5u8, 220u8]), 1_500u32);
+    /// ```
     pub fn back_bytes_from_constrained_int<T, const BYTES: usize>(
         &mut self,
         range: ops::RangeInclusive<T>,
@@ -940,6 +1102,17 @@ impl UnstructuredBuilder {
     /// Gets the current amount of bytes inside this `UnstructuredBuilder`.
     /// 
     /// Length is a combination of both sides of this builder.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_back_from_slice(&[1, 2, 3]);
+    /// b.extend_front_from_slice(&[4, 5, 6]);
+    /// assert_eq!(b.len(), 6);
+    /// ```
     pub fn len(&self) -> usize {
         self.front.len() + self.back.len()
     }
@@ -947,6 +1120,18 @@ impl UnstructuredBuilder {
     /// Collects and converts this instance into an owned `Vec<u8>`.
     /// This can be later be turned back into [Unstructured] or used
     /// for corpus generation purposes.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use arbitrary::UnstructuredBuilder;
+    /// 
+    /// let mut b = UnstructuredBuilder::new();
+    /// b.extend_back_from_slice(&[1, 2, 3]);
+    /// b.extend_front_from_slice(&[4, 5, 6]);
+    /// let bytes = b.collect();
+    /// assert_eq!(bytes, vec![6, 5, 4, 1, 2, 3]);
+    /// ```
     pub fn collect(mut self) -> Vec<u8> {
         self.front.reverse();
         self.front.extend(self.back);
