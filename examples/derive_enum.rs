@@ -12,7 +12,13 @@ use arbitrary::{Arbitrary, Unstructured};
 enum MyEnum {
     UnitVariant,
     TupleVariant(bool, u32),
-    StructVariant { x: i8, y: (u8, i32) },
+    StructVariant {
+        x: i8,
+        y: (u8, i32),
+    },
+
+    #[arbitrary(skip)]
+    SkippedVariant(usize),
 }
 
 fn main() {
