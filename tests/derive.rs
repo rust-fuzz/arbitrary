@@ -116,6 +116,30 @@ fn derive_enum() {
     assert_eq!((4, Some(17)), <MyEnum as Arbitrary>::size_hint(0));
 }
 
+// This should result in a compiler-error:
+// #[derive(Arbitrary, Debug)]
+// enum Never {
+//     #[arbitrary(skip)]
+//     Nope,
+// }
+
+#[derive(Arbitrary, Debug)]
+enum SkipVariant {
+    Always,
+    #[arbitrary(skip)]
+    Never,
+}
+
+#[test]
+fn test_skip_variant() {
+    (0..=u8::MAX).for_each(|byte| {
+        let buffer = [byte];
+        let unstructured = Unstructured::new(&buffer);
+        let skip_variant = SkipVariant::arbitrary_take_rest(unstructured).unwrap();
+        assert!(!matches!(skip_variant, SkipVariant::Never));
+    })
+}
+
 #[derive(Arbitrary, Debug)]
 enum RecursiveTree {
     Leaf,

@@ -6,11 +6,14 @@ use syn::*;
 
 mod container_attributes;
 mod field_attributes;
+mod variant_attributes;
+
 use container_attributes::ContainerAttributes;
 use field_attributes::{determine_field_constructor, FieldConstructor};
+use variant_attributes::not_skipped;
 
-static ARBITRARY_ATTRIBUTE_NAME: &str = "arbitrary";
-static ARBITRARY_LIFETIME_NAME: &str = "'arbitrary";
+const ARBITRARY_ATTRIBUTE_NAME: &str = "arbitrary";
+const ARBITRARY_LIFETIME_NAME: &str = "'arbitrary";
 
 #[proc_macro_derive(Arbitrary, attributes(arbitrary))]
 pub fn derive_arbitrary(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -201,81 +204,107 @@ fn gen_arbitrary_method(
         })
     }
 
+    fn arbitrary_variant(
+        index: u64,
+        enum_name: &Ident,
+        variant_name: &Ident,
+        ctor: TokenStream,
+    ) -> TokenStream {
+        quote! { #index => #enum_name::#variant_name #ctor }
+    }
+
+    fn arbitrary_enum_method(
+        recursive_count: &syn::Ident,
+        unstructured: TokenStream,
+        variants: &[TokenStream],
+    ) -> impl quote::ToTokens {
+        let count = variants.len() as u64;
+        with_recursive_count_guard(
+            recursive_count,
+            quote! {
+                // Use a multiply + shift to generate a ranged random number
+                // with slight bias. For details, see:
+                // https://lemire.me/blog/2016/06/30/fast-random-shuffling
+                Ok(match (u64::from(<u32 as arbitrary::Arbitrary>::arbitrary(#unstructured)?) * #count) >> 32 {
+                    #(#variants,)*
+                    _ => unreachable!()
+                })
+            },
+        )
+    }
+
+    fn arbitrary_enum(
+        DataEnum { variants, .. }: &DataEnum,
+        enum_name: &Ident,
+        lifetime: LifetimeParam,
+        recursive_count: &syn::Ident,
+    ) -> Result<TokenStream> {
+        let filtered_variants = variants.iter().filter(not_skipped);
+
+        // Check attributes of all variants:
+        filtered_variants
+            .clone()
+            .try_for_each(check_variant_attrs)?;
+
+        // From here on, we can assume that the attributes of all variants were checked.
+        let enumerated_variants = filtered_variants
+            .enumerate()
+            .map(|(index, variant)| (index as u64, variant));
+
+        // Construct `match`-arms for the `arbitrary` method.
+        let variants = enumerated_variants
+            .clone()
+            .map(|(index, Variant { fields, ident, .. })| {
+                construct(fields, |_, field| gen_constructor_for_field(field))
+                    .map(|ctor| arbitrary_variant(index, enum_name, ident, ctor))
+            })
+            .collect::<Result<Vec<TokenStream>>>()?;
+
+        // Construct `match`-arms for the `arbitrary_take_rest` method.
+        let variants_take_rest = enumerated_variants
+            .map(|(index, Variant { fields, ident, .. })| {
+                construct_take_rest(fields)
+                    .map(|ctor| arbitrary_variant(index, enum_name, ident, ctor))
+            })
+            .collect::<Result<Vec<TokenStream>>>()?;
+
+        // Most of the time, `variants` is not empty (the happy path),
+        //   thus `variants_take_rest` will be used,
+        //   so no need to move this check before constructing `variants_take_rest`.
+        // If `variants` is empty, this will emit a compiler-error.
+        (!variants.is_empty())
+            .then(|| {
+                // TODO: Improve dealing with `u` vs. `&mut u`.
+                let arbitrary = arbitrary_enum_method(recursive_count, quote! { u }, &variants);
+                let arbitrary_take_rest = arbitrary_enum_method(recursive_count, quote! { &mut u }, &variants_take_rest);
+
+                quote! {
+                    fn arbitrary(u: &mut arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
+                        #arbitrary
+                    }
+
+                    fn arbitrary_take_rest(mut u: arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
+                        #arbitrary_take_rest
+                    }
+                }
+            })
+            .ok_or_else(|| Error::new_spanned(
+                enum_name,
+                "Enum must have at least one variant, that is not skipped"
+            ))
+    }
+
     let ident = &input.ident;
-    let output = match &input.data {
-        Data::Struct(data) => arbitrary_structlike(&data.fields, ident, lifetime, recursive_count)?,
+    match &input.data {
+        Data::Struct(data) => arbitrary_structlike(&data.fields, ident, lifetime, recursive_count),
         Data::Union(data) => arbitrary_structlike(
             &Fields::Named(data.fields.clone()),
             ident,
             lifetime,
             recursive_count,
-        )?,
-        Data::Enum(data) => {
-            let variants: Vec<TokenStream> = data
-                .variants
-                .iter()
-                .enumerate()
-                .map(|(i, variant)| {
-                    check_variant_attrs(variant)?;
-                    let idx = i as u64;
-                    let variant_name = &variant.ident;
-                    construct(&variant.fields, |_, field| gen_constructor_for_field(field))
-                        .map(|ctor| quote! { #idx => #ident::#variant_name #ctor })
-                })
-                .collect::<Result<_>>()?;
-
-            let variants_take_rest: Vec<TokenStream> = data
-                .variants
-                .iter()
-                .enumerate()
-                .map(|(i, variant)| {
-                    let idx = i as u64;
-                    let variant_name = &variant.ident;
-                    construct_take_rest(&variant.fields)
-                        .map(|ctor| quote! { #idx => #ident::#variant_name #ctor })
-                })
-                .collect::<Result<_>>()?;
-
-            let count = data.variants.len() as u64;
-
-            let arbitrary = with_recursive_count_guard(
-                recursive_count,
-                quote! {
-                    // Use a multiply + shift to generate a ranged random number
-                    // with slight bias. For details, see:
-                    // https://lemire.me/blog/2016/06/30/fast-random-shuffling
-                    Ok(match (u64::from(<u32 as arbitrary::Arbitrary>::arbitrary(u)?) * #count) >> 32 {
-                        #(#variants,)*
-                        _ => unreachable!()
-                    })
-                },
-            );
-
-            let arbitrary_take_rest = with_recursive_count_guard(
-                recursive_count,
-                quote! {
-                    // Use a multiply + shift to generate a ranged random number
-                    // with slight bias. For details, see:
-                    // https://lemire.me/blog/2016/06/30/fast-random-shuffling
-                    Ok(match (u64::from(<u32 as arbitrary::Arbitrary>::arbitrary(&mut u)?) * #count) >> 32 {
-                        #(#variants_take_rest,)*
-                        _ => unreachable!()
-                    })
-                },
-            );
-
-            quote! {
-                fn arbitrary(u: &mut arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
-                    #arbitrary
-                }
-
-                fn arbitrary_take_rest(mut u: arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
-                    #arbitrary_take_rest
-                }
-            }
-        }
-    };
-    Ok(output)
+        ),
+        Data::Enum(data) => arbitrary_enum(data, ident, lifetime, recursive_count),
+    }
 }
 
 fn construct(
@@ -375,7 +404,12 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
         Data::Enum(data) => data
             .variants
             .iter()
-            .map(|v| size_hint_fields(&v.fields))
+            .filter(not_skipped)
+            .map(|Variant { fields, .. }| {
+                // The attributes of all variants are checked in `gen_arbitrary_method` above
+                //   and can therefore assume that they are valid.
+                size_hint_fields(fields)
+            })
             .collect::<Result<Vec<TokenStream>>>()
             .map(|variants| {
                 quote! {
