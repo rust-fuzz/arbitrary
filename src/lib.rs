@@ -37,7 +37,7 @@ pub mod size_hint;
 use core::array;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::iter;
-use core::mem;
+use std::{mem, ops};
 use core::num::{NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize};
 use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
 use core::ops::{Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive};
@@ -208,6 +208,15 @@ pub trait Arbitrary<'a>: Sized {
     ///
     /// See also the documentation for [`Unstructured`][crate::Unstructured].
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self>;
+
+    /// Generate an arbitrary value of `Self` for a given range from unstructured data.
+    fn arbitrary_in_range<T>(u: &mut Unstructured<'a>, range: ops::RangeInclusive<T>) -> Result<Self>
+    where
+        T: crate::unstructured::Int,
+    {
+        let _r = range;
+        Self::arbitrary(u)
+    }
 
     /// Generate an arbitrary value of `Self` from the entirety of the given
     /// unstructured data.
