@@ -833,6 +833,9 @@ pub trait Int:
     fn wrapping_add(self, rhs: Self) -> Self;
 
     #[doc(hidden)]
+    fn to_u64(self) -> u64;
+
+    #[doc(hidden)]
     fn wrapping_sub(self, rhs: Self) -> Self;
 
     #[doc(hidden)]
@@ -876,6 +879,10 @@ macro_rules! impl_int {
 
                 fn to_unsigned(self) -> Self::Unsigned {
                     self as $unsigned_ty
+                }
+
+                fn to_u64(self) -> u64 {
+                    self as u64
                 }
 
                 fn from_unsigned(unsigned: $unsigned_ty) -> Self {
