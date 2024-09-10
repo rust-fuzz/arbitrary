@@ -273,6 +273,10 @@ impl<'a> Unstructured<'a> {
     /// Do not use this to generate the size of a collection. Use
     /// `arbitrary_len` instead.
     ///
+    /// Do not use this function if you expect an error when there
+    /// is not enough underlying data to produce the requested type.
+    /// Use `int_in_range_checked` instead.
+    ///
     /// # Panics
     ///
     /// Panics if `range.start > range.end`. That is, the given range must be
@@ -285,8 +289,7 @@ impl<'a> Unstructured<'a> {
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
-    /// let x: i32 = u.int_in_range(-5_000..=-1_000)
-    ///     .expect("constructed `u` with enough bytes to generate an `i32`");
+    /// let x: i32 = u.int_in_range(-5_000..=-1_000).unwrap();
     ///
     /// assert!(-5_000 <= x);
     /// assert!(x <= -1_000);
@@ -370,6 +373,41 @@ impl<'a> Unstructured<'a> {
         debug_assert!(result <= *range.end());
 
         Ok((result, bytes_consumed))
+    }
+
+    /// Generate an integer within the given range, but only if
+    /// there is enough underlying data.
+    ///
+    /// Do not use this to generate the size of a collection. Use
+    /// `arbitrary_len` instead.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `range.start > range.end`. That is, the given range must be
+    /// non-empty.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use arbitrary::{Arbitrary, Unstructured};
+    ///
+    /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
+    ///
+    /// let x: i32 = u.int_in_range_checked(-5_000..=-1_000)
+    ///     .expect("constructed `u` with enough bytes to generate an `i32`");
+    ///
+    /// assert!(-5_000 <= x);
+    /// assert!(x <= -1_000);
+    /// ```
+    pub fn int_in_range_checked<T>(&mut self, range: ops::RangeInclusive<T>) -> Result<T>
+    where
+        T: Int,
+    {
+        if self.len() >= mem::size_of::<T>() {
+            Ok(self.int_in_range(range)?)
+        } else {
+            Err(Error::NotEnoughData)
+        }
     }
 
     /// Choose one of the given choices.
@@ -1047,5 +1085,20 @@ mod tests {
         for (i, covered) in narrow.iter().enumerate() {
             assert!(covered, "narrow[{}] should have been generated", i);
         }
+    }
+
+    #[test]
+    fn int_in_range_checked() {
+        let mut u = Unstructured::new(&[]);
+        assert!(u.int_in_range_checked(0u8..=100).is_err());
+
+        let mut u = Unstructured::new(&[1]);
+        assert!(u.int_in_range_checked(0u8..=100).is_ok());
+
+        let mut u = Unstructured::new(&[1]);
+        assert!(u.int_in_range_checked(0u32..=100).is_err());
+
+        let mut u = Unstructured::new(&[1, 2, 3, 4]);
+        assert!(u.int_in_range_checked(0u32..=100).is_ok());
     }
 }
