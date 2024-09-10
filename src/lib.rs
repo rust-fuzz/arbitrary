@@ -8,10 +8,10 @@
 
 //! The `Arbitrary` trait crate.
 //!
-//! This trait provides an [`Arbitrary`](./trait.Arbitrary.html) trait to
+//! This trait provides an [`Arbitrary`] trait to
 //! produce well-typed, structured values, from raw, byte buffers. It is
 //! generally intended to be used with fuzzers like AFL or libFuzzer. See the
-//! [`Arbitrary`](./trait.Arbitrary.html) trait's documentation for details on
+//! [`Arbitrary`] trait's documentation for details on
 //! automatically deriving, implementing, and/or using the trait.
 
 #![deny(bad_style)]
@@ -105,7 +105,7 @@ pub use unstructured::Unstructured;
 /// arbitrary implementations for each of your `struct` or `enum`'s members. But
 /// sometimes you need some amount of raw data, or you need to generate a
 /// variably-sized collection type, or something of that sort. The
-/// [`Unstructured`][crate::Unstructured] type helps you with these tasks.
+/// [`Unstructured`] type helps you with these tasks.
 ///
 /// ```
 /// # #[cfg(feature = "derive")] mod foo {
@@ -190,7 +190,7 @@ pub trait Arbitrary<'a>: Sized {
     /// # }
     /// ```
     ///
-    /// See also the documentation for [`Unstructured`][crate::Unstructured].
+    /// See also the documentation for [`Unstructured`].
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self>;
 
     /// Generate an arbitrary value of `Self` from the entirety of the given
@@ -199,7 +199,7 @@ pub trait Arbitrary<'a>: Sized {
     /// This is similar to Arbitrary::arbitrary, however it assumes that it is
     /// the last consumer of the given data, and is thus able to consume it all
     /// if it needs.  See also the documentation for
-    /// [`Unstructured`][crate::Unstructured].
+    /// [`Unstructured`].
     fn arbitrary_take_rest(mut u: Unstructured<'a>) -> Result<Self> {
         Self::arbitrary(&mut u)
     }
@@ -211,7 +211,7 @@ pub trait Arbitrary<'a>: Sized {
     /// creating an arbitrary collection.
     ///
     /// The return value is similar to
-    /// [`Iterator::size_hint`][iterator-size-hint]: it returns a tuple where
+    /// [`Iterator::size_hint`]: it returns a tuple where
     /// the first element is a lower bound on the number of bytes required, and
     /// the second element is an optional upper bound.
     ///
@@ -221,7 +221,7 @@ pub trait Arbitrary<'a>: Sized {
     /// implementation by hand, and your type can be part of a dynamically sized
     /// collection (such as `Vec`), you are strongly encouraged to override this
     /// default with a better implementation. The
-    /// [`size_hint`][crate::size_hint] module will help with this task.
+    /// [`size_hint`] module will help with this task.
     ///
     /// ## Invariant
     ///
@@ -285,8 +285,6 @@ pub trait Arbitrary<'a>: Sized {
     ///     }
     /// }
     /// ```
-    ///
-    /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
         let _ = depth;
