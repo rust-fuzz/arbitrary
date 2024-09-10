@@ -341,7 +341,7 @@ fn construct(
 fn construct_take_rest(fields: &Fields) -> Result<TokenStream> {
     construct(fields, |idx, field| {
         determine_field_constructor(field).map(|field_constructor| match field_constructor {
-            FieldConstructor::Default => quote!(Default::default()),
+            FieldConstructor::Default => quote!(::core::default::Default::default()),
             FieldConstructor::Arbitrary => {
                 if idx + 1 == fields.len() {
                     quote! { arbitrary::Arbitrary::arbitrary_take_rest(u)? }
@@ -392,7 +392,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
         size_hint_fields(fields).map(|hint| {
             quote! {
                 #[inline]
-                fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                fn size_hint(depth: usize) -> (usize, ::core::option::Option<usize>) {
                     arbitrary::size_hint::recursion_guard(depth, |depth| #hint)
                 }
             }
@@ -414,7 +414,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
             .map(|variants| {
                 quote! {
                     #[inline]
-                    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                    fn size_hint(depth: usize) -> (usize, ::core::option::Option<usize>) {
                         arbitrary::size_hint::and(
                             <u32 as arbitrary::Arbitrary>::size_hint(depth),
                             arbitrary::size_hint::recursion_guard(depth, |depth| {
@@ -429,7 +429,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
 
 fn gen_constructor_for_field(field: &Field) -> Result<TokenStream> {
     let ctor = match determine_field_constructor(field)? {
-        FieldConstructor::Default => quote!(Default::default()),
+        FieldConstructor::Default => quote!(::core::default::Default::default()),
         FieldConstructor::Arbitrary => quote!(arbitrary::Arbitrary::arbitrary(u)?),
         FieldConstructor::With(function_or_closure) => quote!((#function_or_closure)(u)?),
         FieldConstructor::Value(value) => quote!(#value),

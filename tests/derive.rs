@@ -300,3 +300,20 @@ fn test_field_attributes() {
     // 17 is the 3rd byte used by arbitrary
     assert_eq!(parcel.price, 17);
 }
+
+#[test]
+fn derive_structs_named_same_as_core() {
+    #[derive(Debug, Arbitrary)]
+    struct Option {
+        f: core::option::Option<u32>,
+    }
+
+    let _ = Option::arbitrary(&mut Unstructured::new(&[]));
+
+    #[derive(Debug, Default, Arbitrary)]
+    struct Default {
+        f: u32,
+    }
+
+    let _ = Default::arbitrary(&mut Unstructured::new(&[]));
+}
