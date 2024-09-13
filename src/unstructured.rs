@@ -281,15 +281,16 @@ impl<'a> Unstructured<'a> {
     /// # Example
     ///
     /// ```
+    /// # fn foo() -> arbitrary::Result<()> {
     /// use arbitrary::{Arbitrary, Unstructured};
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4]);
     ///
-    /// let x: i32 = u.int_in_range(-5_000..=-1_000)
-    ///     .expect("constructed `u` with enough bytes to generate an `i32`");
+    /// let x: i32 = u.int_in_range(-5_000..=-1_000)?;
     ///
     /// assert!(-5_000 <= x);
     /// assert!(x <= -1_000);
+    /// # Ok(()) }
     /// ```
     pub fn int_in_range<T>(&mut self, range: ops::RangeInclusive<T>) -> Result<T>
     where
