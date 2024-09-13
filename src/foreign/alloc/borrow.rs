@@ -14,8 +14,13 @@ where
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::recursion_guard(depth, |depth| {
-            <<A as ToOwned>::Owned as Arbitrary>::size_hint(depth)
+        Self::try_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
+        size_hint::try_recursion_guard(depth, |depth| {
+            <<A as ToOwned>::Owned as Arbitrary>::try_size_hint(depth)
         })
     }
 }

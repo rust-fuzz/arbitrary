@@ -1,4 +1,4 @@
-use crate::{size_hint, Arbitrary, Result, Unstructured};
+use crate::{size_hint, Arbitrary, MaxRecursionReached, Result, Unstructured};
 
 macro_rules! arbitrary_tuple {
     () => {};
@@ -23,10 +23,14 @@ macro_rules! arbitrary_tuple {
 
             #[inline]
             fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                size_hint::and_all(&[
-                    <$last as Arbitrary>::size_hint(depth),
-                    $( <$xs as Arbitrary>::size_hint(depth) ),*
-                ])
+                Self::try_size_hint(depth).unwrap_or_default()
+            }
+            #[inline]
+            fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+                Ok(size_hint::and_all(&[
+                    <$last as Arbitrary>::try_size_hint(depth)?,
+                    $( <$xs as Arbitrary>::try_size_hint(depth)?),*
+                ]))
             }
         }
     };
