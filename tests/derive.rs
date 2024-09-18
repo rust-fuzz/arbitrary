@@ -2,6 +2,9 @@
 // Various structs/fields that we are deriving `Arbitrary` for aren't actually
 // used except to exercise the derive.
 #![allow(dead_code)]
+// Various assert_eq! are used to compare result of bool amongst other data types
+// In this case, using assert! is less explicit and readable
+#![allow(clippy::bool_assert_comparison)]
 
 use arbitrary::*;
 
