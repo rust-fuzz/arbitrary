@@ -39,8 +39,9 @@ pub use derive_arbitrary::*;
 pub use unstructured::Unstructured;
 
 /// Error indicating that the maximum recursion depth has been reached while calculating [`Arbitrary::size_hint`]()
-#[derive(Debug, Clone, Copy)]
-pub struct MaxRecursionReached;
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct MaxRecursionReached {}
 
 impl core::fmt::Display for MaxRecursionReached {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

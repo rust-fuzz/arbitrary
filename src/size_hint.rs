@@ -40,7 +40,7 @@ pub fn try_recursion_guard(
     f: impl FnOnce(usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached>,
 ) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
     if depth > MAX_DEPTH {
-        Err(crate::MaxRecursionReached)
+        Err(crate::MaxRecursionReached {})
     } else {
         f(depth + 1)
     }
