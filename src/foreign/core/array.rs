@@ -64,9 +64,13 @@ where
     }
 
     #[inline]
-    fn size_hint(d: usize) -> (usize, Option<usize>) {
-        size_hint::and_all(&array::from_fn::<_, N, _>(|_| {
-            <T as Arbitrary>::size_hint(d)
-        }))
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        Self::try_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
+        let hint = <T as Arbitrary>::try_size_hint(depth)?;
+        Ok(size_hint::and_all(&array::from_fn::<_, N, _>(|_| hint)))
     }
 }

@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Error, Result, Unstructured},
+    crate::{Arbitrary, Error, MaxRecursionReached, Result, Unstructured},
     core::{
         mem,
         num::{
@@ -131,6 +131,11 @@ where
 
     #[inline]
     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <A as Arbitrary<'a>>::size_hint(depth)
+        Self::try_size_hint(depth).unwrap_or_default()
+    }
+
+    #[inline]
+    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+        <A as Arbitrary<'a>>::try_size_hint(depth)
     }
 }
