@@ -1,7 +1,19 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
-    std::string::String,
+    crate::{Arbitrary, ArbitraryInRange, Result, Unstructured},
+    std::{ops::RangeBounds, string::String},
 };
+
+impl<'a> ArbitraryInRange<'a> for String {
+    type Bound = char;
+
+    fn arbitrary_in_range<R>(u: &mut Unstructured<'a>, range: &R) -> Result<Self>
+    where
+        R: RangeBounds<Self::Bound>,
+    {
+        u.arbitrary_in_range_iter::<Self::Bound, _>(range)?
+            .collect()
+    }
+}
 
 impl<'a> Arbitrary<'a> for String {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {

@@ -1,28 +1,55 @@
 use {
-    crate::{Arbitrary, Error, MaxRecursionReached, Result, Unstructured},
+    crate::{Arbitrary, ArbitraryInRange, Error, MaxRecursionReached, Result, Unstructured},
     core::{
         mem,
         num::{
             NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU128,
-            NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize, Wrapping,
+            NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize, Saturating, Wrapping,
         },
+        ops::{Bound, RangeBounds},
     },
 };
 
+#[inline]
+fn map_bound<T, U, F>(bound: Bound<T>, f: F) -> Bound<U>
+where
+    F: FnOnce(T) -> U,
+{
+    match bound {
+        Bound::Included(bound) => Bound::Included(f(bound)),
+        Bound::Excluded(bound) => Bound::Excluded(f(bound)),
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
 macro_rules! impl_arbitrary_for_integers {
-    ( $( $ty:ty; )* ) => {
+    ( $( $ty:ty: $actual:ty; )* ) => {
         $(
+            impl<'a> ArbitraryInRange<'a> for $ty {
+                type Bound = Self;
+
+                fn arbitrary_in_range<R>(u: &mut Unstructured<'a>, range: &R) -> Result<Self>
+                where
+                    R: RangeBounds<Self::Bound>
+                {
+                    let minimum = map_bound(range.start_bound(), |x| *x as Self);
+                    let maximum = map_bound(range.start_bound(), |x| *x as Self);
+                    u.int_in_range((minimum, maximum))
+                }
+            }
+
             impl<'a> Arbitrary<'a> for $ty {
                 fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-                    let mut buf = [0; mem::size_of::<$ty>()];
-                    u.fill_buffer(&mut buf)?;
-                    Ok(Self::from_le_bytes(buf))
+                    Self::arbitrary_in_range(u, &..)
                 }
 
                 #[inline]
                 fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-                    let n = mem::size_of::<$ty>();
-                    (n, Some(n))
+                    // The implementation of `arbitrary` uses `int_in_range`,
+                    //   which is actually able to generate integers even from 0 bytes,
+                    // thus the actual minimum is `0`.
+                    // However, to meaningful generate integers, more bytes are required.
+                    (mem::size_of::<$actual>(), Some(mem::size_of::<$actual>()))
                 }
 
             }
@@ -30,42 +57,22 @@ macro_rules! impl_arbitrary_for_integers {
     }
 }
 
-impl_arbitrary_for_integers! {
-    u8;
-    u16;
-    u32;
-    u64;
-    u128;
-    i8;
-    i16;
-    i32;
-    i64;
-    i128;
-}
-
 // Note: We forward Arbitrary for i/usize to i/u64 in order to simplify corpus
 // compatibility between 32-bit and 64-bit builds. This introduces dead space in
 // 32-bit builds but keeps the input layout independent of the build platform.
-impl<'a> Arbitrary<'a> for usize {
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        u.arbitrary::<u64>().map(|x| x as usize)
-    }
-
-    #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <u64 as Arbitrary>::size_hint(depth)
-    }
-}
-
-impl<'a> Arbitrary<'a> for isize {
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        u.arbitrary::<i64>().map(|x| x as isize)
-    }
-
-    #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <i64 as Arbitrary>::size_hint(depth)
-    }
+impl_arbitrary_for_integers! {
+    u8: u8;
+    u16: u16;
+    u32: u32;
+    u64: u64;
+    u128: u128;
+    usize: u64;
+    i8: i8;
+    i16: i16;
+    i32: i32;
+    i64: i64;
+    i128: i128;
+    isize: i64;
 }
 
 macro_rules! impl_arbitrary_for_floats {
@@ -92,12 +99,23 @@ impl_arbitrary_for_floats! {
 
 macro_rules! implement_nonzero_int {
     ($nonzero:ty, $int:ty) => {
+        impl<'a> ArbitraryInRange<'a> for $nonzero {
+            type Bound = $int;
+
+            fn arbitrary_in_range<R>(u: &mut Unstructured<'a>, range: &R) -> Result<Self>
+            where
+                R: RangeBounds<Self::Bound>,
+            {
+                Self::new(<$int as ArbitraryInRange<'a>>::arbitrary_in_range(
+                    u, range,
+                )?)
+                .ok_or(Error::InvalidRange)
+            }
+        }
+
         impl<'a> Arbitrary<'a> for $nonzero {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-                match Self::new(<$int as Arbitrary<'a>>::arbitrary(u)?) {
-                    Some(n) => Ok(n),
-                    None => Err(Error::IncorrectFormat),
-                }
+                Self::new(<$int as Arbitrary<'a>>::arbitrary(u)?).ok_or(Error::IncorrectFormat)
             }
 
             #[inline]
@@ -121,21 +139,53 @@ implement_nonzero_int! { NonZeroU64, u64 }
 implement_nonzero_int! { NonZeroU128, u128 }
 implement_nonzero_int! { NonZeroUsize, usize }
 
-impl<'a, A> Arbitrary<'a> for Wrapping<A>
-where
-    A: Arbitrary<'a>,
-{
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        Arbitrary::arbitrary(u).map(Wrapping)
-    }
+macro_rules! implement_wrapped {
+    ($outer:ident) => {
+        impl<'a, A> ArbitraryInRange<'a> for $outer<A>
+        where
+            A: ArbitraryInRange<'a>,
+        {
+            type Bound = A::Bound;
 
-    #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
+            fn arbitrary_in_range<R>(u: &mut Unstructured<'a>, range: &R) -> Result<Self>
+            where
+                R: RangeBounds<Self::Bound>,
+            {
+                A::arbitrary_in_range(u, range).map($outer)
+            }
 
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        <A as Arbitrary<'a>>::try_size_hint(depth)
-    }
+            fn arbitrary_in_range_take_rest<R>(u: Unstructured<'a>, range: &R) -> Result<Self>
+            where
+                R: RangeBounds<Self::Bound>,
+            {
+                A::arbitrary_in_range_take_rest(u, range).map($outer)
+            }
+        }
+
+        impl<'a, A> Arbitrary<'a> for $outer<A>
+        where
+            A: Arbitrary<'a>,
+        {
+            fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+                A::arbitrary(u).map($outer)
+            }
+
+            fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
+                A::arbitrary_take_rest(u).map($outer)
+            }
+
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                Self::try_size_hint(depth).unwrap_or_default()
+            }
+
+            #[inline]
+            fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+                <A as Arbitrary<'a>>::try_size_hint(depth)
+            }
+        }
+    };
 }
+
+implement_wrapped! { Saturating }
+implement_wrapped! { Wrapping }

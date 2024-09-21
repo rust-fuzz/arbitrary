@@ -30,13 +30,16 @@ pub mod unstructured;
 #[cfg(test)]
 mod tests;
 
-pub use error::*;
+pub use {
+    self::error::{Error, Result},
+    core::ops::RangeBounds,
+};
 
 #[cfg(feature = "derive_arbitrary")]
 pub use derive_arbitrary::*;
 
 #[doc(inline)]
-pub use unstructured::Unstructured;
+pub use self::unstructured::Unstructured;
 
 /// Error indicating that the maximum recursion depth has been reached while calculating [`Arbitrary::size_hint`]()
 #[derive(Debug, Clone)]
@@ -415,6 +418,40 @@ pub trait Arbitrary<'a>: Sized {
     #[inline]
     fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
         Ok(Self::size_hint(depth))
+    }
+}
+
+/// Generate arbitrary structured values in a given range from raw, unstructured data.
+///
+/// This trait is similar to [`Arbitrary`], but for ordered types,
+///   even though it is not required for `Self` to implement [`PartialOrd`] or even [`Ord`].
+pub trait ArbitraryInRange<'a>: Sized {
+    /// The type of the range bounds.
+    ///
+    /// Usually, this is equal to `Self`, but some wrapping types like [`Option<T>`],
+    ///   which only make sense as range bounds if `T` can be used as range bounds,
+    ///   it might be more useful to use the wrapped/inner type `T` instead.
+    type Bound;
+
+    /// Generate an arbitrary value of `Self` in given `range`.
+    ///
+    /// See also the documentation of [`Arbitrary::arbitrary`].
+    fn arbitrary_in_range<R>(u: &mut Unstructured<'a>, range: &R) -> Result<Self>
+    where
+        R: RangeBounds<Self::Bound>;
+
+    /// Generate an arbitrary value of `Self` in given `range`
+    ///   from the entirety of the given unstructured data.
+    ///
+    /// Unlike [`ArbitraryInRange::arbitrary`], which borrows the source of `unstructured` data,
+    ///   this method will take ownership and thus can only be called by the last consumer.
+    ///
+    /// See also the documentation for [`Unstructured`].
+    fn arbitrary_in_range_take_rest<R>(mut u: Unstructured<'a>, range: &R) -> Result<Self>
+    where
+        R: RangeBounds<Self::Bound>,
+    {
+        Self::arbitrary_in_range(&mut u, range)
     }
 }
 
