@@ -11,6 +11,8 @@ pub enum Error {
     NotEnoughData,
     /// The input bytes were not of the right format
     IncorrectFormat,
+    /// Cannot generate value in given range
+    InvalidRange,
 }
 
 impl fmt::Display for Error {
@@ -28,6 +30,7 @@ impl fmt::Display for Error {
                 f,
                 "The raw data is not of the correct format to construct this type"
             ),
+            Error::InvalidRange => write!(f, "Cannot generate a value in given range"),
         }
     }
 }
