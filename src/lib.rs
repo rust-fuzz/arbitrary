@@ -223,21 +223,22 @@ pub trait Arbitrary<'a>: Sized {
     /// This is useful for determining how many elements we should insert when
     /// creating an arbitrary collection.
     ///
-    /// The return value is similar to
-    /// [`Iterator::size_hint`]: it returns a tuple where
-    /// the first element is a lower bound on the number of bytes required, and
-    /// the second element is an optional upper bound.
+    /// The return value is similar to [`Iterator::size_hint`]: it returns a
+    /// tuple where the first element is a lower bound on the number of bytes
+    /// required, and the second element is an optional upper bound.
     ///
     /// The default implementation return `(0, None)` which is correct for any
     /// type, but not ultimately that useful. Using `#[derive(Arbitrary)]` will
     /// create a better implementation. If you are writing an `Arbitrary`
     /// implementation by hand, and your type can be part of a dynamically sized
     /// collection (such as `Vec`), you are strongly encouraged to override this
-    /// default with a better implementation, and also override [`try_size_hint`]
+    /// default with a better implementation, and also override
+    /// [`try_size_hint`].
     ///
     /// ## How to implement this
     ///
-    /// If the size hint calculation is a trivial constant and does not recurse into any other `size_hint` call, you should implement it in `size_hint`:
+    /// If the size hint calculation is a trivial constant and does not recurse
+    /// into any other `size_hint` call, you should implement it in `size_hint`:
     ///
     /// ```
     /// use arbitrary::{size_hint, Arbitrary, Result, Unstructured};
@@ -272,7 +273,8 @@ pub trait Arbitrary<'a>: Sized {
     ///
     /// impl<'a, A: Arbitrary<'a>, B: Arbitrary<'a>> Arbitrary<'a> for SomeStruct<A, B> {
     ///     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-    ///         todo!()
+    ///         // ...
+    /// #       todo!()
     ///     }
     ///
     ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
@@ -323,20 +325,22 @@ pub trait Arbitrary<'a>: Sized {
     /// Get a size hint for how many bytes out of an `Unstructured` this type
     /// needs to construct itself.
     ///
-    /// Unlike [`size_hint`], this function keeps the information
-    /// that the recursion limit was reached. This is required to "short circuit" the calculation
-    /// and avoid exponential blowup with recursive structures.
+    /// Unlike [`size_hint`], this function keeps the information that the
+    /// recursion limit was reached. This is required to "short circuit" the
+    /// calculation and avoid exponential blowup with recursive structures.
     ///
-    /// If you are implementing [`size_hint`] for a struct that could be recursive, you should implement `try_size_hint` and call the `try_size_hint` when recursing
+    /// If you are implementing [`size_hint`] for a struct that could be
+    /// recursive, you should implement `try_size_hint` and call the
+    /// `try_size_hint` when recursing
     ///
     ///
-    /// The return value is similar to
-    /// [`Iterator::size_hint`][iterator-size-hint]: it returns a tuple where
-    /// the first element is a lower bound on the number of bytes required, and
-    /// the second element is an optional upper bound.
+    /// The return value is similar to [`core::iter::Iterator::size_hint`]: it
+    /// returns a tuple where the first element is a lower bound on the number
+    /// of bytes required, and the second element is an optional upper bound.
     ///
-    /// The default implementation return the value of [`size_hint`] which is correct for any
-    /// type, but might lead to exponential blowup when dealing with recursive types.
+    /// The default implementation returns the value of [`size_hint`] which is
+    /// correct for any type, but might lead to exponential blowup when dealing
+    /// with recursive types.
     ///
     /// ## Invariant
     ///
@@ -353,10 +357,14 @@ pub trait Arbitrary<'a>: Sized {
     ///
     /// If you 100% know that the type you are implementing `Arbitrary` for is
     /// not a recursive type, or your implementation is not transitively calling
-    /// any other `size_hint` methods, you just implement [`size_hint`], and the
+    /// any other `size_hint` methods, you may implement [`size_hint`], and the
     /// default `try_size_hint` implementation will use it.
+    ///
     /// Note that if you are implementing `Arbitrary` for a generic type, you
     /// cannot guarantee the lack of type recursion!
+    ///
+    /// Otherwise, when there is possible type recursion, you should implement
+    /// `try_size_hint` instead.
     ///
     /// ## The `depth` parameter
     ///
@@ -386,9 +394,10 @@ pub trait Arbitrary<'a>: Sized {
     ///     }
     ///
     ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-    ///         // Return the value of try_size_hint
+    ///         // Return the value of `try_size_hint`
     ///         //
-    ///         // If the recursion fails, return the default, always valid `(0, None)`
+    ///         // If the recursion fails, return the default `(0, None)` range,
+    ///         // which is always valid.
     ///         Self::try_size_hint(depth).unwrap_or_default()
     ///     }
     ///
@@ -410,8 +419,6 @@ pub trait Arbitrary<'a>: Sized {
     ///     }
     /// }
     /// ```
-    /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
-    /// [`size_hint`]: Arbitrary::size_hint
     #[inline]
     fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
         Ok(Self::size_hint(depth))
