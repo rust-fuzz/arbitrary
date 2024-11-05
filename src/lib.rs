@@ -49,7 +49,7 @@ impl core::fmt::Display for MaxRecursionReached {
     }
 }
 
-impl core::error::Error for MaxRecursionReached {}
+impl std::error::Error for MaxRecursionReached {}
 
 /// Generate arbitrary structured values from raw, unstructured data.
 ///
