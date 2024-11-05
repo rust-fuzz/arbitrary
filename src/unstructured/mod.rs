@@ -8,10 +8,26 @@
 
 //! Wrappers around raw, unstructured bytes.
 
-use crate::{Arbitrary, Error, Result};
-use std::marker::PhantomData;
-use std::ops::ControlFlow;
-use std::{mem, ops};
+pub mod integer;
+pub mod iterators;
+
+#[cfg(test)]
+mod tests;
+
+use {
+    crate::{Arbitrary, ArbitraryInRange, Error, Result},
+    core::{
+        cmp,
+        fmt::Debug,
+        mem,
+        ops::{Bound, ControlFlow, RangeBounds},
+    },
+};
+
+pub use self::{
+    integer::Int,
+    iterators::{ArbitraryInRangeIter, ArbitraryIter, ArbitraryTakeRestIter},
+};
 
 /// A source of unstructured data.
 ///
@@ -186,9 +202,9 @@ impl<'a> Unstructured<'a> {
     ///
     /// ```
     /// use arbitrary::{Arbitrary, Result, Unstructured};
-    /// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
+    /// # pub struct MyCollection<T> { _t: core::marker::PhantomData<T> }
     /// # impl<T> MyCollection<T> {
-    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
+    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: core::marker::PhantomData } }
     /// #     pub fn insert(&mut self, element: T) {}
     /// # }
     ///
@@ -218,7 +234,7 @@ impl<'a> Unstructured<'a> {
         let byte_size = self.arbitrary_byte_size()?;
         let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
         let elem_size = upper.unwrap_or(lower * 2);
-        let elem_size = std::cmp::max(1, elem_size);
+        let elem_size = cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
     }
 
@@ -243,25 +259,25 @@ impl<'a> Unstructured<'a> {
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
-                Self::int_in_range_impl(0..=max_size as u8, for_size.iter().copied())?.0 as usize
+                Self::int_in_range_impl(..=max_size as u8, for_size)?.0 as usize
             } else if self.data.len() as u64 <= u16::MAX as u64 + 2 {
                 let bytes = 2;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
-                Self::int_in_range_impl(0..=max_size as u16, for_size.iter().copied())?.0 as usize
+                Self::int_in_range_impl(..=max_size as u16, for_size)?.0 as usize
             } else if self.data.len() as u64 <= u32::MAX as u64 + 4 {
                 let bytes = 4;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
-                Self::int_in_range_impl(0..=max_size as u32, for_size.iter().copied())?.0 as usize
+                Self::int_in_range_impl(..=max_size as u32, for_size)?.0 as usize
             } else {
                 let bytes = 8;
                 let max_size = self.data.len() - bytes;
                 let (rest, for_size) = self.data.split_at(max_size);
                 self.data = rest;
-                Self::int_in_range_impl(0..=max_size as u64, for_size.iter().copied())?.0 as usize
+                Self::int_in_range_impl(..=max_size as u64, for_size)?.0 as usize
             };
 
             Ok(len)
@@ -292,35 +308,20 @@ impl<'a> Unstructured<'a> {
     /// assert!(x <= -1_000);
     /// # Ok(()) }
     /// ```
-    pub fn int_in_range<T>(&mut self, range: ops::RangeInclusive<T>) -> Result<T>
+    pub fn int_in_range<T, R>(&mut self, range: R) -> Result<T>
     where
         T: Int,
+        R: RangeBounds<T>,
     {
-        let (result, bytes_consumed) = Self::int_in_range_impl(range, self.data.iter().cloned())?;
+        let (result, bytes_consumed) = Self::int_in_range_impl(range, self.data)?;
         self.data = &self.data[bytes_consumed..];
         Ok(result)
     }
 
-    fn int_in_range_impl<T>(
-        range: ops::RangeInclusive<T>,
-        mut bytes: impl Iterator<Item = u8>,
-    ) -> Result<(T, usize)>
+    fn int_in_bounds<T>(start: T, end: T, mut bytes: impl Iterator<Item = u8>) -> (T, usize)
     where
         T: Int,
     {
-        let start = *range.start();
-        let end = *range.end();
-        assert!(
-            start <= end,
-            "`arbitrary::Unstructured::int_in_range` requires a non-empty range"
-        );
-
-        // When there is only one possible choice, don't waste any entropy from
-        // the underlying data.
-        if start == end {
-            return Ok((start, 0));
-        }
-
         // From here on out we work with the unsigned representation. All of the
         // operations performed below work out just as well whether or not `T`
         // is a signed or unsigned integer.
@@ -367,10 +368,49 @@ impl<'a> Unstructured<'a> {
 
         // And convert back to our maybe-signed representation.
         let result = T::from_unsigned(result);
-        debug_assert!(*range.start() <= result);
-        debug_assert!(result <= *range.end());
 
-        Ok((result, bytes_consumed))
+        (result, bytes_consumed)
+    }
+
+    fn int_in_range_impl<T, R>(range: R, bytes: &[u8]) -> Result<(T, usize)>
+    where
+        T: Int,
+        R: RangeBounds<T>,
+    {
+        let start = match range.start_bound() {
+            Bound::Included(x) => Ok(*x),
+            Bound::Excluded(x) if *x == T::MAX => Err(Error::InvalidRange),
+            Bound::Excluded(x) => Ok((*x).wrapping_add(T::ONE)),
+            Bound::Unbounded => Ok(T::MIN),
+        }?;
+        let end = match range.end_bound() {
+            Bound::Included(x) => Ok(*x),
+            Bound::Excluded(x) if *x == T::MIN => Err(Error::InvalidRange),
+            Bound::Excluded(x) => Ok((*x).wrapping_sub(T::ONE)),
+            Bound::Unbounded => Ok(T::MAX),
+        }?;
+
+        if start == end {
+            // If there is only one possible choice,
+            //   don't waste any entropy from the underlying data.
+            Ok((start, 0))
+        } else if start == T::MIN && end == T::MAX {
+            // If a value from the type’s full range is requested,
+            //   don't waste time computing, just return any value.
+            let mut buf: T::Array = <_>::default();
+
+            let bytes_consumed = cmp::min(mem::size_of::<T>(), bytes.len());
+            (buf.as_mut()[..bytes_consumed]).copy_from_slice(&bytes[..bytes_consumed]);
+
+            Ok((T::from_bytes(buf), bytes_consumed))
+        } else if start < end {
+            // The difficult part
+            let (result, bytes_consumed) = Self::int_in_bounds(start, end, bytes.iter().copied());
+            debug_assert!(range.contains(&result));
+            Ok((result, bytes_consumed))
+        } else {
+            Err(Error::InvalidRange)
+        }
     }
 
     /// Choose one of the given choices.
@@ -556,7 +596,7 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(buf, [0, 0]);
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        let n = std::cmp::min(buffer.len(), self.data.len());
+        let n = cmp::min(buffer.len(), self.data.len());
         buffer[..n].copy_from_slice(&self.data[..n]);
         for byte in buffer[n..].iter_mut() {
             *byte = 0;
@@ -643,10 +683,22 @@ impl<'a> Unstructured<'a> {
     pub fn arbitrary_iter<'b, ElementType: Arbitrary<'a>>(
         &'b mut self,
     ) -> Result<ArbitraryIter<'a, 'b, ElementType>> {
-        Ok(ArbitraryIter {
-            u: &mut *self,
-            _marker: PhantomData,
-        })
+        Ok(ArbitraryIter::new(&mut *self))
+    }
+
+    /// Provide an iterator over elements for constructing a collection with elements in range
+    ///
+    /// This is useful for implementing [`Arbitrary::arbitrary`] on collections
+    /// since the implementation is simply `u.arbitrary_iter()?.collect()`
+    pub fn arbitrary_in_range_iter<'u, 'r, ElementType, Range>(
+        &'u mut self,
+        range: &'r Range,
+    ) -> Result<ArbitraryInRangeIter<'a, 'u, 'r, ElementType, Range>>
+    where
+        ElementType: ArbitraryInRange<'a>,
+        Range: RangeBounds<ElementType::Bound>,
+    {
+        Ok(ArbitraryInRangeIter::new(&mut *self, range))
     }
 
     /// Provide an iterator over elements for constructing a collection from
@@ -657,23 +709,19 @@ impl<'a> Unstructured<'a> {
     pub fn arbitrary_take_rest_iter<ElementType: Arbitrary<'a>>(
         self,
     ) -> Result<ArbitraryTakeRestIter<'a, ElementType>> {
-        Ok(ArbitraryTakeRestIter {
-            u: self,
-            _marker: PhantomData,
-        })
+        Ok(ArbitraryTakeRestIter::new(self))
     }
 
     /// Call the given function an arbitrary number of times.
     ///
-    /// The function is given this `Unstructured` so that it can continue to
-    /// generate arbitrary data and structures.
+    /// The function is given this `Unstructured`
+    ///   so that it can continue to generate arbitrary data and structures.
     ///
-    /// You may optionaly specify minimum and maximum bounds on the number of
-    /// times the function is called.
+    /// You may optionaly specify minimum and maximum bounds
+    ///   on the number of times the function is called.
     ///
-    /// You may break out of the loop early by returning
-    /// `Ok(std::ops::ControlFlow::Break)`. To continue the loop, return
-    /// `Ok(std::ops::ControlFlow::Continue)`.
+    /// You may break out of the loop early by returning `Ok(ControlFlow::Break)`.
+    /// To continue the loop, return `Ok(ControlFlow::Continue)`.
     ///
     /// # Panics
     ///
@@ -681,12 +729,12 @@ impl<'a> Unstructured<'a> {
     ///
     /// # Example
     ///
-    /// Call a closure that generates an arbitrary type inside a context an
-    /// arbitrary number of times:
+    /// Call a closure that generates an arbitrary type
+    ///   inside a context an arbitrary number of times:
     ///
     /// ```
     /// use arbitrary::{Result, Unstructured};
-    /// use std::ops::ControlFlow;
+    /// use core::ops::ControlFlow;
     ///
     /// enum Type {
     ///     /// A boolean type.
@@ -708,7 +756,7 @@ impl<'a> Unstructured<'a> {
     ///         } else {
     ///             3
     ///         };
-    ///         let ty = match u.int_in_range::<u8>(1..=num_choices)? {
+    ///         let ty = match u.int_in_range(1u8..=num_choices)? {
     ///             1 => Type::Bool,
     ///             2 => Type::Int,
     ///             3 => Type::List(u.int_in_range(0..=context.len() - 1)?),
@@ -743,310 +791,5 @@ impl<'a> Unstructured<'a> {
         }
 
         Ok(())
-    }
-}
-
-/// Utility iterator produced by [`Unstructured::arbitrary_iter`]
-pub struct ArbitraryIter<'a, 'b, ElementType> {
-    u: &'b mut Unstructured<'a>,
-    _marker: PhantomData<ElementType>,
-}
-
-impl<'a, 'b, ElementType: Arbitrary<'a>> Iterator for ArbitraryIter<'a, 'b, ElementType> {
-    type Item = Result<ElementType>;
-    fn next(&mut self) -> Option<Result<ElementType>> {
-        let keep_going = self.u.arbitrary().unwrap_or(false);
-        if keep_going {
-            Some(Arbitrary::arbitrary(self.u))
-        } else {
-            None
-        }
-    }
-}
-
-/// Utility iterator produced by [`Unstructured::arbitrary_take_rest_iter`]
-pub struct ArbitraryTakeRestIter<'a, ElementType> {
-    u: Unstructured<'a>,
-    _marker: PhantomData<ElementType>,
-}
-
-impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryTakeRestIter<'a, ElementType> {
-    type Item = Result<ElementType>;
-    fn next(&mut self) -> Option<Result<ElementType>> {
-        let keep_going = self.u.arbitrary().unwrap_or(false);
-        if keep_going {
-            Some(Arbitrary::arbitrary(&mut self.u))
-        } else {
-            None
-        }
-    }
-}
-
-/// A trait that is implemented for all of the primitive integers:
-///
-/// * `u8`
-/// * `u16`
-/// * `u32`
-/// * `u64`
-/// * `u128`
-/// * `usize`
-/// * `i8`
-/// * `i16`
-/// * `i32`
-/// * `i64`
-/// * `i128`
-/// * `isize`
-///
-/// Don't implement this trait yourself.
-pub trait Int:
-    Copy
-    + std::fmt::Debug
-    + PartialOrd
-    + Ord
-    + ops::Sub<Self, Output = Self>
-    + ops::Rem<Self, Output = Self>
-    + ops::Shr<Self, Output = Self>
-    + ops::Shl<usize, Output = Self>
-    + ops::BitOr<Self, Output = Self>
-{
-    #[doc(hidden)]
-    type Unsigned: Int;
-
-    #[doc(hidden)]
-    const ZERO: Self;
-
-    #[doc(hidden)]
-    const ONE: Self;
-
-    #[doc(hidden)]
-    const MAX: Self;
-
-    #[doc(hidden)]
-    fn from_u8(b: u8) -> Self;
-
-    #[doc(hidden)]
-    fn from_usize(u: usize) -> Self;
-
-    #[doc(hidden)]
-    fn checked_add(self, rhs: Self) -> Option<Self>;
-
-    #[doc(hidden)]
-    fn wrapping_add(self, rhs: Self) -> Self;
-
-    #[doc(hidden)]
-    fn wrapping_sub(self, rhs: Self) -> Self;
-
-    #[doc(hidden)]
-    fn to_unsigned(self) -> Self::Unsigned;
-
-    #[doc(hidden)]
-    fn from_unsigned(unsigned: Self::Unsigned) -> Self;
-}
-
-macro_rules! impl_int {
-    ( $( $ty:ty : $unsigned_ty: ty ; )* ) => {
-        $(
-            impl Int for $ty {
-                type Unsigned = $unsigned_ty;
-
-                const ZERO: Self = 0;
-
-                const ONE: Self = 1;
-
-                const MAX: Self = Self::MAX;
-
-                fn from_u8(b: u8) -> Self {
-                    b as Self
-                }
-
-                fn from_usize(u: usize) -> Self {
-                    u as Self
-                }
-
-                fn checked_add(self, rhs: Self) -> Option<Self> {
-                    <$ty>::checked_add(self, rhs)
-                }
-
-                fn wrapping_add(self, rhs: Self) -> Self {
-                    <$ty>::wrapping_add(self, rhs)
-                }
-
-                fn wrapping_sub(self, rhs: Self) -> Self {
-                    <$ty>::wrapping_sub(self, rhs)
-                }
-
-                fn to_unsigned(self) -> Self::Unsigned {
-                    self as $unsigned_ty
-                }
-
-                fn from_unsigned(unsigned: $unsigned_ty) -> Self {
-                    unsigned as Self
-                }
-            }
-        )*
-    }
-}
-
-impl_int! {
-    u8: u8;
-    u16: u16;
-    u32: u32;
-    u64: u64;
-    u128: u128;
-    usize: usize;
-    i8: u8;
-    i16: u16;
-    i32: u32;
-    i64: u64;
-    i128: u128;
-    isize: usize;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_byte_size() {
-        let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);
-        // Should take one byte off the end
-        assert_eq!(u.arbitrary_byte_size().unwrap(), 6);
-        assert_eq!(u.len(), 9);
-        let mut v = vec![0; 260];
-        v.push(1);
-        v.push(4);
-        let mut u = Unstructured::new(&v);
-        // Should read two bytes off the end
-        assert_eq!(u.arbitrary_byte_size().unwrap(), 0x104);
-        assert_eq!(u.len(), 260);
-    }
-
-    #[test]
-    fn int_in_range_of_one() {
-        let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);
-        let x = u.int_in_range(0..=0).unwrap();
-        assert_eq!(x, 0);
-        let choice = *u.choose(&[42]).unwrap();
-        assert_eq!(choice, 42)
-    }
-
-    #[test]
-    fn int_in_range_uses_minimal_amount_of_bytes() {
-        let mut u = Unstructured::new(&[1, 2]);
-        assert_eq!(1, u.int_in_range::<u8>(0..=u8::MAX).unwrap());
-        assert_eq!(u.len(), 1);
-
-        let mut u = Unstructured::new(&[1, 2]);
-        assert_eq!(1, u.int_in_range::<u32>(0..=u8::MAX as u32).unwrap());
-        assert_eq!(u.len(), 1);
-
-        let mut u = Unstructured::new(&[1]);
-        assert_eq!(1, u.int_in_range::<u32>(0..=u8::MAX as u32 + 1).unwrap());
-        assert!(u.is_empty());
-    }
-
-    #[test]
-    fn int_in_range_in_bounds() {
-        for input in u8::MIN..=u8::MAX {
-            let input = [input];
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(1..=u8::MAX).unwrap();
-            assert_ne!(x, 0);
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(0..=u8::MAX - 1).unwrap();
-            assert_ne!(x, u8::MAX);
-        }
-    }
-
-    #[test]
-    fn int_in_range_covers_unsigned_range() {
-        // Test that we generate all values within the range given to
-        // `int_in_range`.
-
-        let mut full = [false; u8::MAX as usize + 1];
-        let mut no_zero = [false; u8::MAX as usize];
-        let mut no_max = [false; u8::MAX as usize];
-        let mut narrow = [false; 10];
-
-        for input in u8::MIN..=u8::MAX {
-            let input = [input];
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(0..=u8::MAX).unwrap();
-            full[x as usize] = true;
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(1..=u8::MAX).unwrap();
-            no_zero[x as usize - 1] = true;
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(0..=u8::MAX - 1).unwrap();
-            no_max[x as usize] = true;
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(100..=109).unwrap();
-            narrow[x as usize - 100] = true;
-        }
-
-        for (i, covered) in full.iter().enumerate() {
-            assert!(covered, "full[{}] should have been generated", i);
-        }
-        for (i, covered) in no_zero.iter().enumerate() {
-            assert!(covered, "no_zero[{}] should have been generated", i);
-        }
-        for (i, covered) in no_max.iter().enumerate() {
-            assert!(covered, "no_max[{}] should have been generated", i);
-        }
-        for (i, covered) in narrow.iter().enumerate() {
-            assert!(covered, "narrow[{}] should have been generated", i);
-        }
-    }
-
-    #[test]
-    fn int_in_range_covers_signed_range() {
-        // Test that we generate all values within the range given to
-        // `int_in_range`.
-
-        let mut full = [false; u8::MAX as usize + 1];
-        let mut no_min = [false; u8::MAX as usize];
-        let mut no_max = [false; u8::MAX as usize];
-        let mut narrow = [false; 21];
-
-        let abs_i8_min: isize = 128;
-
-        for input in 0..=u8::MAX {
-            let input = [input];
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(i8::MIN..=i8::MAX).unwrap();
-            full[(x as isize + abs_i8_min) as usize] = true;
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(i8::MIN + 1..=i8::MAX).unwrap();
-            no_min[(x as isize + abs_i8_min - 1) as usize] = true;
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(i8::MIN..=i8::MAX - 1).unwrap();
-            no_max[(x as isize + abs_i8_min) as usize] = true;
-
-            let mut u = Unstructured::new(&input);
-            let x = u.int_in_range(-10..=10).unwrap();
-            narrow[(x as isize + 10) as usize] = true;
-        }
-
-        for (i, covered) in full.iter().enumerate() {
-            assert!(covered, "full[{}] should have been generated", i);
-        }
-        for (i, covered) in no_min.iter().enumerate() {
-            assert!(covered, "no_min[{}] should have been generated", i);
-        }
-        for (i, covered) in no_max.iter().enumerate() {
-            assert!(covered, "no_max[{}] should have been generated", i);
-        }
-        for (i, covered) in narrow.iter().enumerate() {
-            assert!(covered, "narrow[{}] should have been generated", i);
-        }
     }
 }

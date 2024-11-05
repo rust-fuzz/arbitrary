@@ -1,4 +1,25 @@
-use crate::{size_hint, Arbitrary, MaxRecursionReached, Result, Unstructured};
+use {
+    crate::{size_hint, Arbitrary, ArbitraryInRange, MaxRecursionReached, Result, Unstructured},
+    core::ops::RangeBounds,
+};
+
+impl<'a, A> ArbitraryInRange<'a> for Option<A>
+where
+    A: ArbitraryInRange<'a>,
+{
+    type Bound = A::Bound;
+
+    fn arbitrary_in_range<R>(u: &mut Unstructured<'a>, range: &R) -> Result<Self>
+    where
+        R: RangeBounds<Self::Bound>,
+    {
+        Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
+            Some(A::arbitrary_in_range(u, range)?)
+        } else {
+            None
+        })
+    }
+}
 
 impl<'a, A> Arbitrary<'a> for Option<A>
 where
@@ -6,7 +27,7 @@ where
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(if <bool as Arbitrary<'a>>::arbitrary(u)? {
-            Some(Arbitrary::arbitrary(u)?)
+            Some(A::arbitrary(u)?)
         } else {
             None
         })
