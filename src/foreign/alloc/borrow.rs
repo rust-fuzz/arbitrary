@@ -5,7 +5,7 @@ use {
 
 impl<'a, A> Arbitrary<'a> for Cow<'a, A>
 where
-    A: ToOwned + ?Sized,
+    A: ToOwned + ?Sized + 'a,
     <A as ToOwned>::Owned: Arbitrary<'a>,
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
