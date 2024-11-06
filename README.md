@@ -120,6 +120,16 @@ impl<'a> Arbitrary<'a> for Rgb {
 }
 ```
 
+## Minimum Supported Rust Version (MSRV)
+
+<!-- NB: Keep this number in sync with the `rust-version` in `Cargo.toml`. -->
+
+This crate is guaranteed to compile on stable Rust **1.63.0** and up. It might
+compile with older versions but that may change in any new patch release.
+
+We reserve the right to increment the MSRV on minor releases, however we will
+strive to only do it deliberately and for good reasons.
+
 ## License
 
 Licensed under dual MIT or Apache-2.0 at your choice.
