@@ -752,7 +752,7 @@ pub struct ArbitraryIter<'a, 'b, ElementType> {
     _marker: PhantomData<ElementType>,
 }
 
-impl<'a, 'b, ElementType: Arbitrary<'a>> Iterator for ArbitraryIter<'a, 'b, ElementType> {
+impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryIter<'a, '_, ElementType> {
     type Item = Result<ElementType>;
     fn next(&mut self) -> Option<Result<ElementType>> {
         let keep_going = self.u.arbitrary().unwrap_or(false);
