@@ -94,7 +94,7 @@ macro_rules! implement_nonzero_int {
     ($nonzero:ty, $int:ty) => {
         impl<'a> Arbitrary<'a> for $nonzero {
             fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-                match Self::new(<$int as Arbitrary<'a>>::arbitrary(u)?) {
+                match Self::new(<$int as Arbitrary<'a>>::arbitrary(u)?.saturating_add(1)) {
                     Some(n) => Ok(n),
                     None => Err(Error::IncorrectFormat),
                 }
