@@ -1,6 +1,12 @@
+#[cfg(feature = "std")]
+use std::ffi::CString;
+
+#[cfg(all(not(feature = "std"), feature = "alloc_ffi_cstring"))]
+use alloc::ffi::CString;
+
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::ffi::CString,
+    alloc::vec::Vec,
 };
 
 impl<'a> Arbitrary<'a> for CString {

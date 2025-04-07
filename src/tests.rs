@@ -1,12 +1,22 @@
+use super::{Arbitrary, Result, Unstructured};
+
+#[cfg(feature = "std")]
 use {
-    super::{Arbitrary, Result, Unstructured},
-    std::{collections::HashSet, fmt::Debug, hash::Hash, rc::Rc, sync::Arc},
+    core::{fmt::Debug, hash::Hash},
+    std::collections::HashSet,
 };
+
+#[cfg(feature = "alloc")]
+use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
+
+#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+use alloc::sync::Arc;
 
 /// Assert that the given expected values are all generated.
 ///
 /// Exhaustively enumerates all buffers up to length 10 containing the
 /// following bytes: `0x00`, `0x01`, `0x61` (aka ASCII 'a'), and `0xff`
+#[cfg(feature = "std")]
 fn assert_generates<T>(expected_values: impl IntoIterator<Item = T>)
 where
     T: Clone + Debug + Hash + Eq + for<'a> Arbitrary<'a>,
@@ -26,7 +36,7 @@ where
 
         buf.clear();
         buf.extend(
-            std::iter::repeat_with(|| {
+            core::iter::repeat_with(|| {
                 let index = g.gen(bytes.len() - 1);
                 bytes[index]
             })
@@ -116,6 +126,7 @@ fn finite_buffer_fill_buffer() {
     assert_eq!(z, [0, 0]);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn arbitrary_for_integers() {
     let x = [1, 2, 3, 4];
@@ -153,6 +164,7 @@ fn arbitrary_take_rest_for_bytes() {
     assert_eq!(expected, actual);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn arbitrary_for_vec_u8() {
     assert_generates::<Vec<u8>>([
@@ -174,6 +186,7 @@ fn arbitrary_for_vec_u8() {
     ]);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn arbitrary_for_vec_vec_u8() {
     assert_generates::<Vec<Vec<u8>>>([
@@ -192,6 +205,7 @@ fn arbitrary_for_vec_vec_u8() {
     ]);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn arbitrary_for_vec_vec_vec_u8() {
     assert_generates::<Vec<Vec<Vec<u8>>>>([
@@ -216,6 +230,7 @@ fn arbitrary_for_vec_vec_vec_u8() {
     ]);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn arbitrary_for_string() {
     assert_generates::<String>(["".into(), "a".into(), "aa".into(), "aaa".into()]);
@@ -230,26 +245,32 @@ fn arbitrary_collection() {
         checked_arbitrary::<&[u8]>(&mut Unstructured::new(&x)).unwrap(),
         &[1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary::<Vec<u8>>(&mut Unstructured::new(&x)).unwrap(),
         &[2, 4, 6, 8, 1]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         &*checked_arbitrary::<Box<[u8]>>(&mut Unstructured::new(&x)).unwrap(),
         &[2, 4, 6, 8, 1]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         &*checked_arbitrary::<Arc<[u8]>>(&mut Unstructured::new(&x)).unwrap(),
         &[2, 4, 6, 8, 1]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         &*checked_arbitrary::<Rc<[u8]>>(&mut Unstructured::new(&x)).unwrap(),
         &[2, 4, 6, 8, 1]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary::<Vec<u32>>(&mut Unstructured::new(&x)).unwrap(),
         &[84148994]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary::<String>(&mut Unstructured::new(&x)).unwrap(),
         "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x01\x02\x03"
@@ -264,26 +285,32 @@ fn arbitrary_take_rest() {
         checked_arbitrary_take_rest::<&[u8]>(Unstructured::new(&x)).unwrap(),
         &[1, 2, 3, 4]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary_take_rest::<Vec<u8>>(Unstructured::new(&x)).unwrap(),
         &[2, 4]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         &*checked_arbitrary_take_rest::<Box<[u8]>>(Unstructured::new(&x)).unwrap(),
         &[2, 4]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         &*checked_arbitrary_take_rest::<Arc<[u8]>>(Unstructured::new(&x)).unwrap(),
         &[2, 4]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         &*checked_arbitrary_take_rest::<Rc<[u8]>>(Unstructured::new(&x)).unwrap(),
         &[2, 4]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary_take_rest::<Vec<u32>>(Unstructured::new(&x)).unwrap(),
         &[0x040302]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary_take_rest::<String>(Unstructured::new(&x)).unwrap(),
         "\x01\x02\x03\x04"
@@ -294,18 +321,21 @@ fn arbitrary_take_rest() {
         checked_arbitrary_take_rest::<&[u8]>(Unstructured::new(&[])).unwrap(),
         &[]
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary_take_rest::<Vec<u8>>(Unstructured::new(&[])).unwrap(),
         &[]
     );
 
     // Cannot consume all but can consume part of the input
+    #[cfg(feature = "alloc")]
     assert_eq!(
         checked_arbitrary_take_rest::<String>(Unstructured::new(&[1, 0xFF, 2])).unwrap(),
         "\x01"
     );
 }
 
+#[cfg(feature = "alloc")]
 #[test]
 fn size_hint_for_tuples() {
     assert_eq!(

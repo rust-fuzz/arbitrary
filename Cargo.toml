@@ -23,8 +23,19 @@ rust-version = "1.63.0" # Keep in sync with version documented in the README.md
 derive_arbitrary = { version = "~1.4.0", path = "./derive", optional = true }
 
 [features]
+default = ["std"]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
+# Enables support for the `std` crate.
+std = ["alloc"]
+# Enables support for the `alloc` crate.
+alloc = []
+# Enables using core::error::Error. Increases MSRV to at least 1.81.0
+core_error = []
+# Enables using core::net when `std` is disabled. Increases MSRV to at least 1.77.0
+core_net = []
+# Enables using `alloc::ffi::CString` when `std` is disabled. Increases MSRV to at least 1.64.0
+alloc_ffi_cstring = ["alloc"]
 
 [[example]]
 name = "derive_enum"
@@ -40,3 +51,8 @@ members = ["./fuzz"]
 
 [dev-dependencies]
 exhaustigen = "0.1.0"
+
+[lints.clippy]
+alloc_instead_of_core = "warn"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"
