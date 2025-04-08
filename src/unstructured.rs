@@ -426,6 +426,7 @@ impl<'a> Unstructured<'a> {
     /// ```
     /// # #[cfg(feature = "std")]
     /// # {
+    /// # extern crate alloc;
     /// use alloc::collections::BTreeSet;
     /// use arbitrary::Unstructured;
     ///
