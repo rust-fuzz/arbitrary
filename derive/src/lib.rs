@@ -29,13 +29,18 @@ fn expand_derive_arbitrary(input: syn::DeriveInput) -> Result<TokenStream> {
     let (lifetime_without_bounds, lifetime_with_bounds) =
         build_arbitrary_lifetime(input.generics.clone());
 
+    #[cfg(feature = "recursive_count")]
     let recursive_count = syn::Ident::new(
         &format!("RECURSIVE_COUNT_{}", input.ident),
         Span::call_site(),
     );
 
-    let arbitrary_method =
-        gen_arbitrary_method(&input, lifetime_without_bounds.clone(), &recursive_count)?;
+    let arbitrary_method = gen_arbitrary_method(
+        &input,
+        lifetime_without_bounds.clone(),
+        #[cfg(feature = "recursive_count")]
+        &recursive_count,
+    )?;
     let size_hint_method = gen_size_hint_method(&input)?;
     let name = input.ident;
 
@@ -56,14 +61,22 @@ fn expand_derive_arbitrary(input: syn::DeriveInput) -> Result<TokenStream> {
     // Build TypeGenerics and WhereClause without a lifetime
     let (_, ty_generics, where_clause) = generics.split_for_impl();
 
+    #[cfg(feature = "recursive_count")]
+    let recursive_count_preamble = quote! {
+        extern crate std;
+
+        ::std::thread_local! {
+            #[allow(non_upper_case_globals)]
+            static #recursive_count: ::core::cell::Cell<u32> = ::core::cell::Cell::new(0);
+        }
+    };
+
+    #[cfg(not(feature = "recursive_count"))]
+    let recursive_count_preamble = TokenStream::new();
+
     Ok(quote! {
         const _: () = {
-            extern crate std;
-
-            ::std::thread_local! {
-                #[allow(non_upper_case_globals)]
-                static #recursive_count: ::core::cell::Cell<u32> = ::core::cell::Cell::new(0);
-            }
+            #recursive_count_preamble
 
             #[automatically_derived]
             impl #impl_generics arbitrary::Arbitrary<#lifetime_without_bounds> for #name #ty_generics #where_clause {
@@ -150,9 +163,10 @@ fn add_trait_bounds(mut generics: Generics, lifetime: LifetimeParam) -> Generics
 }
 
 fn with_recursive_count_guard(
-    recursive_count: &syn::Ident,
+    #[cfg(feature = "recursive_count")] recursive_count: &syn::Ident,
     expr: impl quote::ToTokens,
 ) -> impl quote::ToTokens {
+    #[cfg(feature = "recursive_count")]
     quote! {
         let guard_against_recursion = u.is_empty();
         if guard_against_recursion {
@@ -175,25 +189,35 @@ fn with_recursive_count_guard(
 
         result
     }
+
+    #[cfg(not(feature = "recursive_count"))]
+    quote! { (|| { #expr })() }
 }
 
 fn gen_arbitrary_method(
     input: &DeriveInput,
     lifetime: LifetimeParam,
-    recursive_count: &syn::Ident,
+    #[cfg(feature = "recursive_count")] recursive_count: &syn::Ident,
 ) -> Result<TokenStream> {
     fn arbitrary_structlike(
         fields: &Fields,
         ident: &syn::Ident,
         lifetime: LifetimeParam,
-        recursive_count: &syn::Ident,
+        #[cfg(feature = "recursive_count")] recursive_count: &syn::Ident,
     ) -> Result<TokenStream> {
         let arbitrary = construct(fields, |_idx, field| gen_constructor_for_field(field))?;
-        let body = with_recursive_count_guard(recursive_count, quote! { Ok(#ident #arbitrary) });
+        let body = with_recursive_count_guard(
+            #[cfg(feature = "recursive_count")]
+            recursive_count,
+            quote! { Ok(#ident #arbitrary) },
+        );
 
         let arbitrary_take_rest = construct_take_rest(fields)?;
-        let take_rest_body =
-            with_recursive_count_guard(recursive_count, quote! { Ok(#ident #arbitrary_take_rest) });
+        let take_rest_body = with_recursive_count_guard(
+            #[cfg(feature = "recursive_count")]
+            recursive_count,
+            quote! { Ok(#ident #arbitrary_take_rest) },
+        );
 
         Ok(quote! {
             fn arbitrary(u: &mut arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
@@ -216,12 +240,13 @@ fn gen_arbitrary_method(
     }
 
     fn arbitrary_enum_method(
-        recursive_count: &syn::Ident,
         unstructured: TokenStream,
         variants: &[TokenStream],
+        #[cfg(feature = "recursive_count")] recursive_count: &syn::Ident,
     ) -> impl quote::ToTokens {
         let count = variants.len() as u64;
         with_recursive_count_guard(
+            #[cfg(feature = "recursive_count")]
             recursive_count,
             quote! {
                 // Use a multiply + shift to generate a ranged random number
@@ -239,7 +264,7 @@ fn gen_arbitrary_method(
         DataEnum { variants, .. }: &DataEnum,
         enum_name: &Ident,
         lifetime: LifetimeParam,
-        recursive_count: &syn::Ident,
+        #[cfg(feature = "recursive_count")] recursive_count: &syn::Ident,
     ) -> Result<TokenStream> {
         let filtered_variants = variants.iter().filter(not_skipped);
 
@@ -277,8 +302,18 @@ fn gen_arbitrary_method(
         (!variants.is_empty())
             .then(|| {
                 // TODO: Improve dealing with `u` vs. `&mut u`.
-                let arbitrary = arbitrary_enum_method(recursive_count, quote! { u }, &variants);
-                let arbitrary_take_rest = arbitrary_enum_method(recursive_count, quote! { &mut u }, &variants_take_rest);
+                let arbitrary = arbitrary_enum_method(
+                    quote! { u },
+                    &variants,
+                    #[cfg(feature = "recursive_count")]
+                    recursive_count,
+                );
+                let arbitrary_take_rest = arbitrary_enum_method(
+                    quote! { &mut u },
+                    &variants_take_rest,
+                    #[cfg(feature = "recursive_count")]
+                    recursive_count,
+                );
 
                 quote! {
                     fn arbitrary(u: &mut arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
@@ -298,14 +333,27 @@ fn gen_arbitrary_method(
 
     let ident = &input.ident;
     match &input.data {
-        Data::Struct(data) => arbitrary_structlike(&data.fields, ident, lifetime, recursive_count),
+        Data::Struct(data) => arbitrary_structlike(
+            &data.fields,
+            ident,
+            lifetime,
+            #[cfg(feature = "recursive_count")]
+            recursive_count,
+        ),
         Data::Union(data) => arbitrary_structlike(
             &Fields::Named(data.fields.clone()),
             ident,
             lifetime,
+            #[cfg(feature = "recursive_count")]
             recursive_count,
         ),
-        Data::Enum(data) => arbitrary_enum(data, ident, lifetime, recursive_count),
+        Data::Enum(data) => arbitrary_enum(
+            data,
+            ident,
+            lifetime,
+            #[cfg(feature = "recursive_count")]
+            recursive_count,
+        ),
     }
 }
 

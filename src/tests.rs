@@ -2,12 +2,13 @@ use super::{Arbitrary, Result, Unstructured};
 
 #[cfg(feature = "std")]
 use {
+    alloc::vec,
     core::{fmt::Debug, hash::Hash},
     std::collections::HashSet,
 };
 
 #[cfg(feature = "alloc")]
-use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 
 #[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
 use alloc::sync::Arc;

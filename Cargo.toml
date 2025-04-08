@@ -23,7 +23,7 @@ rust-version = "1.63.0" # Keep in sync with version documented in the README.md
 derive_arbitrary = { version = "~1.4.0", path = "./derive", optional = true }
 
 [features]
-default = ["std"]
+default = ["std", "recursive_count"]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
 # Enables support for the `std` crate.
@@ -36,6 +36,8 @@ core_error = []
 core_net = []
 # Enables using `alloc::ffi::CString` when `std` is disabled. Increases MSRV to at least 1.64.0
 alloc_ffi_cstring = ["alloc"]
+# Checks for unbounded recursion at runtime. This does nothing without the "derive" feature.
+recursive_count = ["derive_arbitrary?/recursive_count"]
 
 [[example]]
 name = "derive_enum"
