@@ -41,7 +41,7 @@ jobs:
     - run: rustup update
     - run: rustup toolchain add 1.82
     - run: rustup target add x86_64-unknown-none --toolchain 1.82
-    - run: cargo +1.82 check --no-default-features --features alloc,derive,core_error,core_net,alloc_ffi_cstring --target x86_64-unknown-none
+    - run: cargo +1.82 check --no-default-features --features alloc,derive,core_error,core_net,alloc_ffi_cstring,derive --target x86_64-unknown-none
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
