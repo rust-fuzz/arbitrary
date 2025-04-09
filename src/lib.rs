@@ -56,10 +56,6 @@ impl core::fmt::Display for MaxRecursionReached {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for MaxRecursionReached {}
-
-#[cfg(all(not(feature = "std"), feature = "core_error"))]
 impl core::error::Error for MaxRecursionReached {}
 
 /// Generate arbitrary structured values from raw, unstructured data.

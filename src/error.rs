@@ -32,10 +32,6 @@ impl fmt::Display for Error {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
-
-#[cfg(all(not(feature = "std"), feature = "core_error"))]
 impl core::error::Error for Error {}
 
 /// A `Result` with the error type fixed as `arbitrary::Error`.

@@ -1,7 +1,3 @@
-#[cfg(feature = "std")]
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
-
-#[cfg(all(not(feature = "std"), feature = "core_net"))]
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
 use crate::{size_hint, Arbitrary, Result, Unstructured};

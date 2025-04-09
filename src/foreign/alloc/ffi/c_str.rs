@@ -1,7 +1,3 @@
-#[cfg(feature = "std")]
-use std::ffi::CString;
-
-#[cfg(all(not(feature = "std"), feature = "alloc_ffi_cstring"))]
 use alloc::ffi::CString;
 
 use {

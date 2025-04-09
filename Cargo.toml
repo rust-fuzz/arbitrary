@@ -17,7 +17,7 @@ description = "The trait for generating structured data from unstructured data"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-fuzz/arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
-rust-version = "1.63.0" # Keep in sync with version documented in the README.md
+rust-version = "1.81.0" # Keep in sync with version documented in the README.md
 
 [dependencies]
 derive_arbitrary = { version = "~1.4.0", path = "./derive", default-features = false, optional = true }
@@ -30,12 +30,6 @@ derive = ["derive_arbitrary"]
 std = ["alloc"]
 # Enables support for the `alloc` crate.
 alloc = []
-# Enables using core::error::Error. Increases MSRV to at least 1.81.0
-core_error = []
-# Enables using core::net when `std` is disabled. Increases MSRV to at least 1.77.0
-core_net = []
-# Enables using `alloc::ffi::CString` when `std` is disabled. Increases MSRV to at least 1.64.0
-alloc_ffi_cstring = ["alloc"]
 # Checks for unbounded recursion at runtime. This does nothing without the "derive" feature.
 recursive_count = ["derive_arbitrary?/recursive_count"]
 
