@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     core::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize},
 };
 
@@ -9,7 +9,7 @@ impl<'a> Arbitrary<'a> for AtomicBool {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <bool as Arbitrary<'a>>::size_hint(depth)
     }
 }
@@ -20,7 +20,7 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <isize as Arbitrary<'a>>::size_hint(depth)
     }
 }
@@ -31,7 +31,7 @@ impl<'a> Arbitrary<'a> for AtomicUsize {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <usize as Arbitrary<'a>>::size_hint(depth)
     }
 }

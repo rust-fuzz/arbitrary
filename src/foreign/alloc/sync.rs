@@ -1,5 +1,5 @@
 use {
-    crate::{size_hint, Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     std::sync::Arc,
 };
 
@@ -12,13 +12,8 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
-        size_hint::try_recursion_guard(depth, <A as Arbitrary>::try_size_hint)
+    fn size_hint(depth: usize) -> Result<SizeHint, crate::MaxRecursionReached> {
+        SizeHint::recursion_guard(depth, <A as Arbitrary>::size_hint)
     }
 }
 
@@ -35,8 +30,8 @@ where
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, None)
+    fn size_hint(_depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok(SizeHint::at_least(0))
     }
 }
 
@@ -46,7 +41,7 @@ impl<'a> Arbitrary<'a> for Arc<str> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <&str as Arbitrary>::size_hint(depth)
     }
 }

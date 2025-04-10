@@ -1,4 +1,4 @@
-use crate::{Arbitrary, Result, Unstructured};
+use crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured};
 
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -18,7 +18,7 @@ impl<'a> Arbitrary<'a> for char {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <u32 as Arbitrary<'a>>::size_hint(depth)
     }
 }

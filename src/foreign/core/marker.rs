@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     core::marker::{PhantomData, PhantomPinned},
 };
 
@@ -12,8 +12,8 @@ where
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, Some(0))
+    fn size_hint(_depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok(SizeHint::exactly(0))
     }
 }
 
@@ -23,7 +23,7 @@ impl<'a> Arbitrary<'a> for PhantomPinned {
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, Some(0))
+    fn size_hint(_depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok(SizeHint::exactly(0))
     }
 }

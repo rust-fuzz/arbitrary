@@ -24,13 +24,14 @@
 
 mod error;
 mod foreign;
-pub mod size_hint;
+mod size_hint;
 pub mod unstructured;
 
 #[cfg(test)]
 mod tests;
 
 pub use error::*;
+pub use size_hint::SizeHint;
 
 #[cfg(feature = "derive_arbitrary")]
 pub use derive_arbitrary::*;
@@ -38,8 +39,9 @@ pub use derive_arbitrary::*;
 #[doc(inline)]
 pub use unstructured::Unstructured;
 
-/// Error indicating that the maximum recursion depth has been reached while calculating [`Arbitrary::size_hint`]()
-#[derive(Debug, Clone)]
+/// Error indicating that the maximum recursion depth has been reached while calculating
+/// [`Arbitrary::size_hint()`]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct MaxRecursionReached {}
 
@@ -217,31 +219,33 @@ pub trait Arbitrary<'a>: Sized {
         Self::arbitrary(&mut u)
     }
 
-    /// Get a size hint for how many bytes out of an `Unstructured` this type
+    /// Get a [size hint][SizeHint] for how many bytes out of an [`Unstructured`] this type
     /// needs to construct itself.
     ///
     /// This is useful for determining how many elements we should insert when
     /// creating an arbitrary collection.
     ///
-    /// The return value is similar to [`Iterator::size_hint`]: it returns a
-    /// tuple where the first element is a lower bound on the number of bytes
-    /// required, and the second element is an optional upper bound.
-    ///
-    /// The default implementation return `(0, None)` which is correct for any
+    /// The default implementation returns [`SizeHint::UNKNOWN`] which is correct for any
     /// type, but not ultimately that useful. Using `#[derive(Arbitrary)]` will
     /// create a better implementation. If you are writing an `Arbitrary`
     /// implementation by hand, and your type can be part of a dynamically sized
     /// collection (such as `Vec`), you are strongly encouraged to override this
-    /// default with a better implementation, and also override
-    /// [`try_size_hint`].
+    /// default with a better implementation.
+    ///
+    /// The [`Result`] is used to avoid exponential blowup with recursive structures.
+    /// by "short circuiting" the entire computation when the recursion limit is reached.
+    /// You do not typically need to do anything with it other than call
+    /// [`SizeHint::recursion_guard()`] in your implementations.
+    /// If you are calling `size_hint()`, a reasonable way to handle it is
+    /// `.size_hint().unwrap_or(SizeHint::at_least(0))`
     ///
     /// ## How to implement this
     ///
     /// If the size hint calculation is a trivial constant and does not recurse
-    /// into any other `size_hint` call, you should implement it in `size_hint`:
+    /// into any other `size_hint` call, you can ignore the `depth` value:`
     ///
     /// ```
-    /// use arbitrary::{size_hint, Arbitrary, Result, Unstructured};
+    /// use arbitrary::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured};
     ///
     /// struct SomeStruct(u8);
     ///
@@ -253,18 +257,17 @@ pub trait Arbitrary<'a>: Sized {
     ///     }
     ///
     ///     #[inline]
-    ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    ///     fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
     ///         let _ = depth;
-    ///         (1, Some(1))
+    ///         Ok(SizeHint::exactly(1))
     ///     }
     /// }
     /// ```
     ///
-    /// Otherwise, it should instead be implemented in [`try_size_hint`],
-    /// and the `size_hint` implementation should forward to it:
+    /// Otherwise, you must use [`SizeHint::recursion_guard()`]
     ///
     /// ```
-    /// use arbitrary::{size_hint, Arbitrary, MaxRecursionReached, Result, Unstructured};
+    /// use arbitrary::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured};
     ///
     /// struct SomeStruct<A, B> {
     ///     a: A,
@@ -277,27 +280,19 @@ pub trait Arbitrary<'a>: Sized {
     /// #       todo!()
     ///     }
     ///
-    ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-    ///         // Return the value of try_size_hint
-    ///         //
-    ///         // If the recursion fails, return the default, always valid `(0, None)`
-    ///         Self::try_size_hint(depth).unwrap_or_default()
-    ///     }
-    ///
-    ///     fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-    ///         // Protect against potential infinite recursion with
-    ///         // `try_recursion_guard`.
-    ///         size_hint::try_recursion_guard(depth, |depth| {
+    ///     fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+    ///         // Protect against potential infinite recursion with `recursion_guard`.
+    ///         SizeHint::recursion_guard(depth, |depth| {
     ///             // If we aren't too deep, then `recursion_guard` calls
     ///             // this closure, which implements the natural size hint.
     ///             // Don't forget to use the new `depth` in all nested
-    ///             // `try_size_hint` calls! We recommend shadowing the
+    ///             // `size_hint` calls! We recommend shadowing the
     ///             // parameter, like what is done here, so that you can't
     ///             // accidentally use the wrong depth.
-    ///             Ok(size_hint::and(
-    ///                 <A as Arbitrary>::try_size_hint(depth)?,
-    ///                 <B as Arbitrary>::try_size_hint(depth)?,
-    ///             ))
+    ///             Ok(
+    ///                 <A as Arbitrary>::size_hint(depth)?
+    ///                     + <B as Arbitrary>::size_hint(depth)?
+    ///             )
     ///         })
     ///     }
     /// }
@@ -309,119 +304,16 @@ pub trait Arbitrary<'a>: Sized {
     /// of lengths bounded by these parameters. This applies to both
     /// [`Arbitrary::arbitrary`] and [`Arbitrary::arbitrary_take_rest`].
     ///
-    /// This is trivially true for `(0, None)`. To restrict this further, it
+    /// This is trivially true for [`SizeHint::UNKNOWN`]. To restrict this further, it
     /// must be proven that all inputs that are now excluded produced redundant
     /// outputs which are still possible to produce using the reduced input
     /// space.
     ///
     /// [iterator-size-hint]: https://doc.rust-lang.org/stable/std/iter/trait.Iterator.html#method.size_hint
-    /// [`try_size_hint`]: Arbitrary::try_size_hint
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         let _ = depth;
-        (0, None)
-    }
-
-    /// Get a size hint for how many bytes out of an `Unstructured` this type
-    /// needs to construct itself.
-    ///
-    /// Unlike [`size_hint`], this function keeps the information that the
-    /// recursion limit was reached. This is required to "short circuit" the
-    /// calculation and avoid exponential blowup with recursive structures.
-    ///
-    /// If you are implementing [`size_hint`] for a struct that could be
-    /// recursive, you should implement `try_size_hint` and call the
-    /// `try_size_hint` when recursing
-    ///
-    ///
-    /// The return value is similar to [`core::iter::Iterator::size_hint`]: it
-    /// returns a tuple where the first element is a lower bound on the number
-    /// of bytes required, and the second element is an optional upper bound.
-    ///
-    /// The default implementation returns the value of [`size_hint`] which is
-    /// correct for any type, but might lead to exponential blowup when dealing
-    /// with recursive types.
-    ///
-    /// ## Invariant
-    ///
-    /// It must be possible to construct every possible output using only inputs
-    /// of lengths bounded by these parameters. This applies to both
-    /// [`Arbitrary::arbitrary`] and [`Arbitrary::arbitrary_take_rest`].
-    ///
-    /// This is trivially true for `(0, None)`. To restrict this further, it
-    /// must be proven that all inputs that are now excluded produced redundant
-    /// outputs which are still possible to produce using the reduced input
-    /// space.
-    ///
-    /// ## When to implement `try_size_hint`
-    ///
-    /// If you 100% know that the type you are implementing `Arbitrary` for is
-    /// not a recursive type, or your implementation is not transitively calling
-    /// any other `size_hint` methods, you may implement [`size_hint`], and the
-    /// default `try_size_hint` implementation will use it.
-    ///
-    /// Note that if you are implementing `Arbitrary` for a generic type, you
-    /// cannot guarantee the lack of type recursion!
-    ///
-    /// Otherwise, when there is possible type recursion, you should implement
-    /// `try_size_hint` instead.
-    ///
-    /// ## The `depth` parameter
-    ///
-    /// When implementing `try_size_hint`, you need to use
-    /// [`arbitrary::size_hint::try_recursion_guard(depth)`][crate::size_hint::try_recursion_guard]
-    /// to prevent potential infinite recursion when calculating size hints for
-    /// potentially recursive types:
-    ///
-    /// ```
-    /// use arbitrary::{size_hint, Arbitrary, MaxRecursionReached, Unstructured};
-    ///
-    /// // This can potentially be a recursive type if `L` or `R` contain
-    /// // something like `Box<Option<MyEither<L, R>>>`!
-    /// enum MyEither<L, R> {
-    ///     Left(L),
-    ///     Right(R),
-    /// }
-    ///
-    /// impl<'a, L, R> Arbitrary<'a> for MyEither<L, R>
-    /// where
-    ///     L: Arbitrary<'a>,
-    ///     R: Arbitrary<'a>,
-    /// {
-    ///     fn arbitrary(u: &mut Unstructured) -> arbitrary::Result<Self> {
-    ///         // ...
-    /// #       unimplemented!()
-    ///     }
-    ///
-    ///     fn size_hint(depth: usize) -> (usize, Option<usize>) {
-    ///         // Return the value of `try_size_hint`
-    ///         //
-    ///         // If the recursion fails, return the default `(0, None)` range,
-    ///         // which is always valid.
-    ///         Self::try_size_hint(depth).unwrap_or_default()
-    ///     }
-    ///
-    ///     fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-    ///         // Protect against potential infinite recursion with
-    ///         // `try_recursion_guard`.
-    ///         size_hint::try_recursion_guard(depth, |depth| {
-    ///             // If we aren't too deep, then `recursion_guard` calls
-    ///             // this closure, which implements the natural size hint.
-    ///             // Don't forget to use the new `depth` in all nested
-    ///             // `try_size_hint` calls! We recommend shadowing the
-    ///             // parameter, like what is done here, so that you can't
-    ///             // accidentally use the wrong depth.
-    ///             Ok(size_hint::or(
-    ///                 <L as Arbitrary>::try_size_hint(depth)?,
-    ///                 <R as Arbitrary>::try_size_hint(depth)?,
-    ///             ))
-    ///         })
-    ///     }
-    /// }
-    /// ```
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        Ok(Self::size_hint(depth))
+        Ok(SizeHint::UNKNOWN)
     }
 }
 

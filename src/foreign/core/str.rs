@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     core::str,
 };
 
@@ -33,7 +33,7 @@ impl<'a> Arbitrary<'a> for &'a str {
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, None)
+    fn size_hint(_depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok(SizeHint::at_least(0))
     }
 }

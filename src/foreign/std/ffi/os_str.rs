@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     std::ffi::OsString,
 };
 
@@ -9,7 +9,7 @@ impl<'a> Arbitrary<'a> for OsString {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <String as Arbitrary>::size_hint(depth)
     }
 }

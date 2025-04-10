@@ -27,7 +27,7 @@ fn struct_with_named_fields() {
     assert_eq!(rgb.g, 5);
     assert_eq!(rgb.b, 6);
 
-    assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint(0));
+    assert_eq!(Ok(SizeHint::exactly(3)), <Rgb as Arbitrary>::size_hint(0));
 }
 
 #[derive(Copy, Clone, Debug, Arbitrary)]
@@ -43,7 +43,10 @@ fn tuple_struct() {
     assert_eq!(s.0, 42);
     assert_eq!(s.1, true);
 
-    assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint(0));
+    assert_eq!(
+        Ok(SizeHint::exactly(2)),
+        <MyTupleStruct as Arbitrary>::size_hint(0)
+    );
 }
 
 #[derive(Clone, Debug, Arbitrary)]
@@ -116,7 +119,10 @@ fn derive_enum() {
     assert!(saw_tuple);
     assert!(saw_struct);
 
-    assert_eq!((4, Some(17)), <MyEnum as Arbitrary>::size_hint(0));
+    assert_eq!(
+        Ok(SizeHint::from(4..=17)),
+        <MyEnum as Arbitrary>::size_hint(0)
+    );
 }
 
 // This should result in a compiler-error:
@@ -213,29 +219,19 @@ struct WideRecursiveMixedStruct {
 #[test]
 fn recursive() {
     let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+    // These should all succeed without recursing infinitely.
     let _rec: RecursiveTree = arbitrary_from(&raw);
     let _rec: WideRecursiveStruct = arbitrary_from(&raw);
     let _rec: WideRecursiveEnum = arbitrary_from(&raw);
     let _rec: WideRecursiveMixedStruct = arbitrary_from(&raw);
     let _rec: WideRecursiveMixedEnum = arbitrary_from(&raw);
 
-    assert_eq!((0, None), <WideRecursiveStruct as Arbitrary>::size_hint(0));
-    assert_eq!((0, None), <WideRecursiveEnum as Arbitrary>::size_hint(0));
-    assert_eq!(
-        (0, None),
-        <WideRecursiveMixedStruct as Arbitrary>::size_hint(0)
-    );
-    assert_eq!(
-        (0, None),
-        <WideRecursiveMixedEnum as Arbitrary>::size_hint(0)
-    );
-
-    let (lower, upper) = <RecursiveTree as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 0, "Cannot compute size hint of recursive structure");
-    assert!(
-        upper.is_none(),
-        "potentially infinitely recursive, so no upper bound"
-    );
+    // These should all fail (meaning the size is effectively unbounded).
+    <WideRecursiveStruct as Arbitrary>::size_hint(0).unwrap_err();
+    <WideRecursiveEnum as Arbitrary>::size_hint(0).unwrap_err();
+    <WideRecursiveMixedStruct as Arbitrary>::size_hint(0).unwrap_err();
+    <WideRecursiveMixedEnum as Arbitrary>::size_hint(0).unwrap_err();
+    <RecursiveTree as Arbitrary>::size_hint(0).unwrap_err();
 }
 
 #[derive(Arbitrary, Debug)]
@@ -249,9 +245,9 @@ fn generics() {
     let gen: Generic<bool> = arbitrary_from(&raw);
     assert!(gen.inner);
 
-    let (lower, upper) = <Generic<u32> as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 4);
-    assert_eq!(upper, Some(4));
+    let size_hint = <Generic<u32> as Arbitrary>::size_hint(0).unwrap();
+    assert_eq!(size_hint.lower_bound(), 4);
+    assert_eq!(size_hint.upper_bound(), Some(4));
 }
 
 #[derive(Arbitrary, Debug)]
@@ -266,9 +262,9 @@ fn one_lifetime() {
     let lifetime: OneLifetime = arbitrary_from(&raw);
     assert_eq!("abc", lifetime.alpha);
 
-    let (lower, upper) = <OneLifetime as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 0);
-    assert_eq!(upper, None);
+    let size_hint = <OneLifetime as Arbitrary>::size_hint(0).unwrap();
+    assert_eq!(size_hint.lower_bound(), 0);
+    assert_eq!(size_hint.upper_bound(), None);
 }
 
 #[derive(Arbitrary, Debug)]
@@ -285,9 +281,9 @@ fn two_lifetimes() {
     assert_eq!("abc", lifetime.alpha);
     assert_eq!("def", lifetime.beta);
 
-    let (lower, upper) = <TwoLifetimes as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 0);
-    assert_eq!(upper, None);
+    let size_hint = <TwoLifetimes as Arbitrary>::size_hint(0).unwrap();
+    assert_eq!(size_hint.lower_bound(), 0);
+    assert_eq!(size_hint.upper_bound(), None);
 }
 
 #[test]
