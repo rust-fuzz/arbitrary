@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     std::{ffi::OsString, path::PathBuf},
 };
 
@@ -9,7 +9,7 @@ impl<'a> Arbitrary<'a> for PathBuf {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <OsString as Arbitrary>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <OsString as Arbitrary>::size_hint(context)
     }
 }

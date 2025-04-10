@@ -1,5 +1,5 @@
 use {
-    crate::{size_hint, Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, SizeHint, Unstructured},
     std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
 };
 
@@ -9,8 +9,8 @@ impl<'a> Arbitrary<'a> for Ipv4Addr {
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (4, Some(4))
+    fn size_hint(_context: &size_hint::Context) -> size_hint::SizeHint {
+        SizeHint::exactly(4)
     }
 }
 
@@ -20,8 +20,8 @@ impl<'a> Arbitrary<'a> for Ipv6Addr {
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (16, Some(16))
+    fn size_hint(_context: &size_hint::Context) -> size_hint::SizeHint {
+        SizeHint::exactly(16)
     }
 }
 
@@ -34,11 +34,8 @@ impl<'a> Arbitrary<'a> for IpAddr {
         }
     }
 
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            bool::size_hint(depth),
-            size_hint::or(Ipv4Addr::size_hint(depth), Ipv6Addr::size_hint(depth)),
-        )
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<bool>() + (context.get::<Ipv4Addr>() | context.get::<Ipv6Addr>())
     }
 }
 
@@ -48,8 +45,8 @@ impl<'a> Arbitrary<'a> for SocketAddrV4 {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(Ipv4Addr::size_hint(depth), u16::size_hint(depth))
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<Ipv4Addr>() + context.get::<u16>()
     }
 }
 
@@ -64,14 +61,11 @@ impl<'a> Arbitrary<'a> for SocketAddrV6 {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            Ipv6Addr::size_hint(depth),
-            size_hint::and(
-                u16::size_hint(depth),
-                size_hint::and(u32::size_hint(depth), u32::size_hint(depth)),
-            ),
-        )
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<Ipv6Addr>()
+            + context.get::<u16>()
+            + context.get::<u32>()
+            + context.get::<u32>()
     }
 }
 
@@ -84,13 +78,7 @@ impl<'a> Arbitrary<'a> for SocketAddr {
         }
     }
 
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            bool::size_hint(depth),
-            size_hint::or(
-                SocketAddrV4::size_hint(depth),
-                SocketAddrV6::size_hint(depth),
-            ),
-        )
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<bool>() + (context.get::<SocketAddrV4>() | context.get::<SocketAddrV6>())
     }
 }

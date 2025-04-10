@@ -1,4 +1,4 @@
-use crate::{size_hint, Arbitrary, MaxRecursionReached, Result, Unstructured};
+use crate::{size_hint, Arbitrary, Result, SizeHint, Unstructured};
 
 impl<'a, A> Arbitrary<'a> for Option<A>
 where
@@ -13,15 +13,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        Ok(size_hint::and(
-            <bool as Arbitrary>::try_size_hint(depth)?,
-            size_hint::or((0, Some(0)), <A as Arbitrary>::try_size_hint(depth)?),
-        ))
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<bool>() + (SizeHint::exactly(0) | context.get::<A>())
     }
 }

@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     std::ffi::OsString,
 };
 
@@ -9,8 +9,8 @@ impl<'a> Arbitrary<'a> for OsString {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <String as Arbitrary>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <String as Arbitrary>::size_hint(context)
     }
 }
 

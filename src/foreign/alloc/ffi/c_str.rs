@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     std::ffi::CString,
 };
 
@@ -13,7 +13,8 @@ impl<'a> Arbitrary<'a> for CString {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <Vec<u8> as Arbitrary>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        // known non-recursive
+        <Vec<u8> as Arbitrary>::size_hint(context)
     }
 }

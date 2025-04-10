@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     core::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize},
 };
 
@@ -9,8 +9,8 @@ impl<'a> Arbitrary<'a> for AtomicBool {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <bool as Arbitrary<'a>>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <bool as Arbitrary<'a>>::size_hint(context)
     }
 }
 
@@ -20,8 +20,8 @@ impl<'a> Arbitrary<'a> for AtomicIsize {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <isize as Arbitrary<'a>>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <isize as Arbitrary<'a>>::size_hint(context)
     }
 }
 
@@ -31,7 +31,7 @@ impl<'a> Arbitrary<'a> for AtomicUsize {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <usize as Arbitrary<'a>>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <usize as Arbitrary<'a>>::size_hint(context)
     }
 }

@@ -1,4 +1,4 @@
-use crate::{Arbitrary, Result, Unstructured};
+use crate::{size_hint, Arbitrary, Result, Unstructured};
 
 impl<'a> Arbitrary<'a> for char {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
@@ -18,7 +18,7 @@ impl<'a> Arbitrary<'a> for char {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <u32 as Arbitrary<'a>>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <u32 as Arbitrary<'a>>::size_hint(context)
     }
 }
