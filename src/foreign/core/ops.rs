@@ -1,5 +1,5 @@
 use {
-    crate::{size_hint, Arbitrary, MaxRecursionReached, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     core::{
         mem,
         ops::{Bound, Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive},
@@ -24,12 +24,7 @@ macro_rules! impl_range {
             }
 
             #[inline]
-            fn size_hint(depth: usize) -> (usize, Option<usize>) {
-                Self::try_size_hint(depth).unwrap_or_default()
-            }
-
-            #[inline]
-            fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
+            fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
                 #[allow(clippy::redundant_closure_call)]
                 $size_hint_closure(depth)
             }
@@ -41,41 +36,35 @@ impl_range!(
     |r: &Range<A>| (r.start.clone(), r.end.clone()),
     (A, A),
     bounded_range(|(a, b)| a..b),
-    |depth| Ok(crate::size_hint::and(
-        <A as Arbitrary>::try_size_hint(depth)?,
-        <A as Arbitrary>::try_size_hint(depth)?,
-    ))
+    |depth| Ok(<A as Arbitrary>::size_hint(depth)? + <A as Arbitrary>::size_hint(depth)?)
 );
 impl_range!(
     RangeFrom<A>,
     |r: &RangeFrom<A>| r.start.clone(),
     A,
     unbounded_range(|a| a..),
-    |depth| <A as Arbitrary>::try_size_hint(depth)
+    |depth| <A as Arbitrary>::size_hint(depth)
 );
 impl_range!(
     RangeInclusive<A>,
     |r: &RangeInclusive<A>| (r.start().clone(), r.end().clone()),
     (A, A),
     bounded_range(|(a, b)| a..=b),
-    |depth| Ok(crate::size_hint::and(
-        <A as Arbitrary>::try_size_hint(depth)?,
-        <A as Arbitrary>::try_size_hint(depth)?,
-    ))
+    |depth| Ok(<A as Arbitrary>::size_hint(depth)? + <A as Arbitrary>::size_hint(depth)?)
 );
 impl_range!(
     RangeTo<A>,
     |r: &RangeTo<A>| r.end.clone(),
     A,
     unbounded_range(|b| ..b),
-    |depth| <A as Arbitrary>::try_size_hint(depth)
+    |depth| <A as Arbitrary>::size_hint(depth)
 );
 impl_range!(
     RangeToInclusive<A>,
     |r: &RangeToInclusive<A>| r.end.clone(),
     A,
     unbounded_range(|b| ..=b),
-    |depth| <A as Arbitrary>::try_size_hint(depth)
+    |depth| <A as Arbitrary>::size_hint(depth)
 );
 
 pub(crate) fn bounded_range<CB, I, R>(bounds: (I, I), cb: CB) -> R
@@ -113,15 +102,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        Ok(size_hint::or(
-            size_hint::and((1, Some(1)), A::try_size_hint(depth)?),
-            (1, Some(1)),
-        ))
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok((SizeHint::exactly(1) + A::size_hint(depth)?) | SizeHint::exactly(1))
     }
 }

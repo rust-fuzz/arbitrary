@@ -1,5 +1,5 @@
 use {
-    crate::{size_hint, Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     core::time::Duration,
 };
 
@@ -13,10 +13,7 @@ impl<'a> Arbitrary<'a> for Duration {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        size_hint::and(
-            <u64 as Arbitrary>::size_hint(depth),
-            <u32 as Arbitrary>::size_hint(depth),
-        )
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok(<u64 as Arbitrary>::size_hint(depth)? + <u32 as Arbitrary>::size_hint(depth)?)
     }
 }

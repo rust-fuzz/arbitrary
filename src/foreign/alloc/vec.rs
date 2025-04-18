@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured},
     std::vec::Vec,
 };
 
@@ -16,7 +16,7 @@ where
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, None)
+    fn size_hint(_depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        Ok(SizeHint::at_least(0))
     }
 }

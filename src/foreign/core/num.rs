@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Error, MaxRecursionReached, Result, Unstructured},
+    crate::{Arbitrary, Error, MaxRecursionReached, Result, SizeHint, Unstructured},
     core::{
         mem,
         num::{
@@ -20,9 +20,8 @@ macro_rules! impl_arbitrary_for_integers {
                 }
 
                 #[inline]
-                fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-                    let n = mem::size_of::<$ty>();
-                    (n, Some(n))
+                fn size_hint(_depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+                    Ok(SizeHint::exactly(mem::size_of::<$ty>()))
                 }
 
             }
@@ -52,7 +51,7 @@ impl<'a> Arbitrary<'a> for usize {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <u64 as Arbitrary>::size_hint(depth)
     }
 }
@@ -63,7 +62,7 @@ impl<'a> Arbitrary<'a> for isize {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <i64 as Arbitrary>::size_hint(depth)
     }
 }
@@ -77,7 +76,7 @@ macro_rules! impl_arbitrary_for_floats {
                 }
 
                 #[inline]
-                fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
                     <$unsigned as Arbitrary<'a>>::size_hint(depth)
                 }
             }
@@ -101,7 +100,7 @@ macro_rules! implement_nonzero_int {
             }
 
             #[inline]
-            fn size_hint(depth: usize) -> (usize, Option<usize>) {
+            fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
                 <$int as Arbitrary<'a>>::size_hint(depth)
             }
         }
@@ -130,12 +129,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        <A as Arbitrary<'a>>::try_size_hint(depth)
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
+        <A as Arbitrary<'a>>::size_hint(depth)
     }
 }

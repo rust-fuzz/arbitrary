@@ -1,4 +1,4 @@
-use crate::{Arbitrary, Result, Unstructured};
+use crate::{Arbitrary, MaxRecursionReached, Result, SizeHint, Unstructured};
 
 /// Returns '\0', not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for char {
@@ -19,7 +19,7 @@ impl<'a> Arbitrary<'a> for char {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+    fn size_hint(depth: usize) -> Result<SizeHint, MaxRecursionReached> {
         <u32 as Arbitrary<'a>>::size_hint(depth)
     }
 }
