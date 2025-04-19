@@ -1,5 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
+    alloc::string::String,
     std::ffi::OsString,
 };
 

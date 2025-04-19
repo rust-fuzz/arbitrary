@@ -17,14 +17,21 @@ description = "The trait for generating structured data from unstructured data"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-fuzz/arbitrary/"
 documentation = "https://docs.rs/arbitrary/"
-rust-version = "1.63.0" # Keep in sync with version documented in the README.md
+rust-version = "1.81.0" # Keep in sync with version documented in the README.md
 
 [dependencies]
-derive_arbitrary = { version = "~1.4.0", path = "./derive", optional = true }
+derive_arbitrary = { version = "~1.4.0", path = "./derive", default-features = false, optional = true }
 
 [features]
+default = ["std", "recursive_count"]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
 derive = ["derive_arbitrary"]
+# Enables support for the `std` crate.
+std = ["alloc"]
+# Enables support for the `alloc` crate.
+alloc = []
+# Checks for unbounded recursion at runtime. This does nothing without the "derive" feature.
+recursive_count = ["derive_arbitrary?/recursive_count"]
 
 [[example]]
 name = "derive_enum"
@@ -40,3 +47,8 @@ members = ["./fuzz"]
 
 [dev-dependencies]
 exhaustigen = "0.1.0"
+
+[lints.clippy]
+alloc_instead_of_core = "warn"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"

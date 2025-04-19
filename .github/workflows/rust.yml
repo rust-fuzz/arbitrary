@@ -30,9 +30,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - run: rustup toolchain add 1.63
+    - run: rustup toolchain add 1.81
     - name: Build
-      run: cargo +1.63 check --lib --all-features
+      run: cargo +1.81 check --lib --all-features
+  check_no_std:
+    name: Check no_std
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: rustup update
+    - run: rustup toolchain add 1.81
+    - run: rustup target add x86_64-unknown-none --toolchain 1.81
+    - run: cargo +1.81 check --no-default-features --features alloc,derive --target x86_64-unknown-none
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

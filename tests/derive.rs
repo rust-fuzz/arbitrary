@@ -290,6 +290,7 @@ fn two_lifetimes() {
     assert_eq!(upper, None);
 }
 
+#[cfg(feature = "recursive_count")]
 #[test]
 fn recursive_and_empty_input() {
     // None of the following derives should result in a stack overflow. See
