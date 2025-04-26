@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     std::{
         collections::hash_map::HashMap,
         hash::{BuildHasher, Hash},
@@ -21,7 +21,7 @@ where
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, None)
+    fn size_hint(_context: &size_hint::Context) -> size_hint::SizeHint {
+        size_hint::SizeHint::at_least(0)
     }
 }

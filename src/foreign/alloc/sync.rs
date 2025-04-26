@@ -12,13 +12,8 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
-        size_hint::try_recursion_guard(depth, <A as Arbitrary>::try_size_hint)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<A>()
     }
 }
 
@@ -35,8 +30,8 @@ where
     }
 
     #[inline]
-    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
-        (0, None)
+    fn size_hint(_context: &size_hint::Context) -> size_hint::SizeHint {
+        size_hint::SizeHint::at_least(0)
     }
 }
 
@@ -46,7 +41,8 @@ impl<'a> Arbitrary<'a> for Arc<str> {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        // known non-recursive
+        <&str as Arbitrary>::size_hint(context)
     }
 }

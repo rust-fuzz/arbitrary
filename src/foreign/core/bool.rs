@@ -1,4 +1,4 @@
-use crate::{Arbitrary, Result, Unstructured};
+use crate::{size_hint, Arbitrary, Result, Unstructured};
 
 /// Returns false, not an error, if this `Unstructured` [is empty][Unstructured::is_empty].
 impl<'a> Arbitrary<'a> for bool {
@@ -7,7 +7,7 @@ impl<'a> Arbitrary<'a> for bool {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <u8 as Arbitrary<'a>>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <u8 as Arbitrary<'a>>::size_hint(context)
     }
 }

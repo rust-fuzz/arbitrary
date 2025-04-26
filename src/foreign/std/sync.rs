@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, MaxRecursionReached, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     std::sync::Mutex,
 };
 
@@ -12,12 +12,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        A::try_size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<A>()
     }
 }

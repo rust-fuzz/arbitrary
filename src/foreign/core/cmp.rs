@@ -12,12 +12,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
-        size_hint::try_recursion_guard(depth, <A as Arbitrary>::try_size_hint)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<A>()
     }
 }

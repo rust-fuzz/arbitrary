@@ -8,7 +8,7 @@
 
 //! Wrappers around raw, unstructured bytes.
 
-use crate::{Arbitrary, Error, Result};
+use crate::{size_hint, Arbitrary, Error, Result};
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
 use std::{mem, ops};
@@ -216,8 +216,10 @@ impl<'a> Unstructured<'a> {
         ElementType: Arbitrary<'a>,
     {
         let byte_size = self.arbitrary_byte_size()?;
-        let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
-        let elem_size = upper.unwrap_or(lower * 2);
+        let elem_size_hint = size_hint::get::<ElementType>();
+        let elem_size = elem_size_hint
+            .upper_bound()
+            .unwrap_or(elem_size_hint.lower_bound() * 2);
         let elem_size = std::cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
     }
