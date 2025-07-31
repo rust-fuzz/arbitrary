@@ -470,7 +470,7 @@ impl<'a> Unstructured<'a> {
     ///
     /// # Examples
     ///
-    /// Using Fisher–Yates shuffle shuffle to gerate an arbitrary permutation.
+    /// Using Fisher–Yates shuffle shuffle to generate an arbitrary permutation.
     ///
     /// [Fisher–Yates shuffle]: https://en.wikipedia.org/wiki/Fisher–Yates_shuffle
     ///
