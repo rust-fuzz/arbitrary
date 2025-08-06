@@ -16,7 +16,7 @@ description = "Derives arbitrary traits"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-fuzz/arbitrary"
 documentation = "https://docs.rs/arbitrary/"
-rust-version = "1.63.0"
+rust-version = "1.81.0"
 
 [dependencies]
 proc-macro2 = "1.0"
@@ -25,3 +25,8 @@ syn = { version = "2", features = ['derive', 'parsing', 'extra-traits'] }
 
 [lib]
 proc-macro = true
+
+[features]
+default = ["recursive_count"]
+# Checks for unbounded recursion at runtime. Requires `std`.
+recursive_count = []

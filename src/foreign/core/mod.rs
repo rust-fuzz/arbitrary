@@ -9,6 +9,7 @@ mod char;
 mod cmp;
 mod iter;
 mod marker;
+mod net;
 mod num;
 mod ops;
 mod option;

@@ -9,9 +9,9 @@
 //! Wrappers around raw, unstructured bytes.
 
 use crate::{Arbitrary, Error, Result};
-use std::marker::PhantomData;
-use std::ops::ControlFlow;
-use std::{mem, ops};
+use core::marker::PhantomData;
+use core::ops::ControlFlow;
+use core::{mem, ops};
 
 /// A source of unstructured data.
 ///
@@ -186,9 +186,9 @@ impl<'a> Unstructured<'a> {
     ///
     /// ```
     /// use arbitrary::{Arbitrary, Result, Unstructured};
-    /// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
+    /// # pub struct MyCollection<T> { _t: core::marker::PhantomData<T> }
     /// # impl<T> MyCollection<T> {
-    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: std::marker::PhantomData } }
+    /// #     pub fn with_capacity(capacity: usize) -> Self { MyCollection { _t: core::marker::PhantomData } }
     /// #     pub fn insert(&mut self, element: T) {}
     /// # }
     ///
@@ -218,7 +218,7 @@ impl<'a> Unstructured<'a> {
         let byte_size = self.arbitrary_byte_size()?;
         let (lower, upper) = <ElementType as Arbitrary>::size_hint(0);
         let elem_size = upper.unwrap_or(lower * 2);
-        let elem_size = std::cmp::max(1, elem_size);
+        let elem_size = core::cmp::max(1, elem_size);
         Ok(byte_size / elem_size)
     }
 
@@ -437,7 +437,10 @@ impl<'a> Unstructured<'a> {
     /// Selecting a random item from a set:
     ///
     /// ```
-    /// use std::collections::BTreeSet;
+    /// # #[cfg(feature = "std")]
+    /// # {
+    /// # extern crate alloc;
+    /// use alloc::collections::BTreeSet;
     /// use arbitrary::Unstructured;
     ///
     /// let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
@@ -446,6 +449,7 @@ impl<'a> Unstructured<'a> {
     /// let choice = u.choose_iter(set.iter()).unwrap();
     ///
     /// println!("chose {}", choice);
+    /// # }
     /// ```
     pub fn choose_iter<T, I>(&mut self, choices: I) -> Result<T>
     where
@@ -575,7 +579,7 @@ impl<'a> Unstructured<'a> {
     /// assert_eq!(buf, [0, 0]);
     /// ```
     pub fn fill_buffer(&mut self, buffer: &mut [u8]) -> Result<()> {
-        let n = std::cmp::min(buffer.len(), self.data.len());
+        let n = core::cmp::min(buffer.len(), self.data.len());
         buffer[..n].copy_from_slice(&self.data[..n]);
         for byte in buffer[n..].iter_mut() {
             *byte = 0;
@@ -691,8 +695,8 @@ impl<'a> Unstructured<'a> {
     /// times the function is called.
     ///
     /// You may break out of the loop early by returning
-    /// `Ok(std::ops::ControlFlow::Break)`. To continue the loop, return
-    /// `Ok(std::ops::ControlFlow::Continue)`.
+    /// `Ok(core::ops::ControlFlow::Break)`. To continue the loop, return
+    /// `Ok(core::ops::ControlFlow::Continue)`.
     ///
     /// # Panics
     ///
@@ -705,7 +709,7 @@ impl<'a> Unstructured<'a> {
     ///
     /// ```
     /// use arbitrary::{Result, Unstructured};
-    /// use std::ops::ControlFlow;
+    /// use core::ops::ControlFlow;
     ///
     /// enum Type {
     ///     /// A boolean type.
@@ -819,7 +823,7 @@ impl<'a, ElementType: Arbitrary<'a>> Iterator for ArbitraryTakeRestIter<'a, Elem
 /// Don't implement this trait yourself.
 pub trait Int:
     Copy
-    + std::fmt::Debug
+    + core::fmt::Debug
     + PartialOrd
     + Ord
     + ops::Sub<Self, Output = Self>
@@ -923,8 +927,12 @@ impl_int! {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "alloc")]
+    use alloc::vec;
+
     use super::*;
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn test_byte_size() {
         let mut u = Unstructured::new(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 6]);

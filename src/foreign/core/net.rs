@@ -1,7 +1,6 @@
-use {
-    crate::{size_hint, Arbitrary, Result, Unstructured},
-    std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
-};
+use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+
+use crate::{size_hint, Arbitrary, Result, Unstructured};
 
 impl<'a> Arbitrary<'a> for Ipv4Addr {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
