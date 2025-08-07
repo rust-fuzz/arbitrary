@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, MaxRecursionReached, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     core::cell::{Cell, RefCell, UnsafeCell},
 };
 
@@ -12,13 +12,8 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        <A as Arbitrary<'a>>::try_size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <A as Arbitrary<'a>>::size_hint(context)
     }
 }
 
@@ -31,13 +26,8 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        <A as Arbitrary<'a>>::try_size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <A as Arbitrary<'a>>::size_hint(context)
     }
 }
 
@@ -50,12 +40,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), MaxRecursionReached> {
-        <A as Arbitrary<'a>>::try_size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <A as Arbitrary<'a>>::size_hint(context)
     }
 }

@@ -1,5 +1,6 @@
 use {
     super::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, SizeHint},
     std::{collections::HashSet, fmt::Debug, hash::Hash, rc::Rc, sync::Arc},
 };
 
@@ -7,6 +8,7 @@ use {
 ///
 /// Exhaustively enumerates all buffers up to length 10 containing the
 /// following bytes: `0x00`, `0x01`, `0x61` (aka ASCII 'a'), and `0xff`
+#[track_caller]
 fn assert_generates<T>(expected_values: impl IntoIterator<Item = T>)
 where
     T: Clone + Debug + Hash + Eq + for<'a> Arbitrary<'a>,
@@ -55,29 +57,27 @@ where
 
 /// Generates an arbitrary `T`, and checks that the result is consistent with the
 /// `size_hint()` reported by `T`.
+#[track_caller]
 fn checked_arbitrary<'a, T: Arbitrary<'a>>(u: &mut Unstructured<'a>) -> Result<T> {
-    let (min, max) = T::size_hint(0);
+    let size_hint = size_hint::get::<T>();
+    let min = size_hint.lower_bound();
 
     let len_before = u.len();
     let result = T::arbitrary(u);
 
     let consumed = len_before - u.len();
 
-    if let Some(max) = max {
+    if let Some(max) = size_hint.upper_bound() {
         assert!(
             consumed <= max,
-            "incorrect maximum size: indicated {}, actually consumed {}",
-            max,
-            consumed
+            "incorrect maximum size: indicated {max}, actually consumed {consumed}",
         );
     }
 
     if result.is_ok() {
         assert!(
             consumed >= min,
-            "incorrect minimum size: indicated {}, actually consumed {}",
-            min,
-            consumed
+            "incorrect minimum size: indicated {min}, actually consumed {consumed}",
         );
     }
 
@@ -85,8 +85,9 @@ fn checked_arbitrary<'a, T: Arbitrary<'a>>(u: &mut Unstructured<'a>) -> Result<T
 }
 
 /// Like `checked_arbitrary()`, but calls `arbitrary_take_rest()` instead of `arbitrary()`.
+#[track_caller]
 fn checked_arbitrary_take_rest<'a, T: Arbitrary<'a>>(u: Unstructured<'a>) -> Result<T> {
-    let (min, _) = T::size_hint(0);
+    let min = size_hint::get::<T>().lower_bound();
 
     let len_before = u.len();
     let result = T::arbitrary_take_rest(u);
@@ -94,9 +95,7 @@ fn checked_arbitrary_take_rest<'a, T: Arbitrary<'a>>(u: Unstructured<'a>) -> Res
     if result.is_ok() {
         assert!(
             len_before >= min,
-            "incorrect minimum size: indicated {}, worked with {}",
-            min,
-            len_before
+            "incorrect minimum size: indicated {min}, worked with {len_before}",
         );
     }
 
@@ -309,8 +308,23 @@ fn arbitrary_take_rest() {
 #[test]
 fn size_hint_for_tuples() {
     assert_eq!(
-        (7, Some(7)),
-        <(bool, u16, i32) as Arbitrary<'_>>::size_hint(0)
+        SizeHint::exactly(7),
+        <(bool, u16, i32) as Arbitrary<'_>>::size_hint(&Default::default())
     );
-    assert_eq!((1, None), <(u8, Vec<u8>) as Arbitrary>::size_hint(0));
+    assert_eq!(
+        SizeHint::at_least(1),
+        <(u8, Vec<u8>) as Arbitrary>::size_hint(&Default::default())
+    );
+}
+
+#[test]
+fn size_hint_not_overridden() {
+    struct Example;
+    impl<'a> Arbitrary<'a> for Example {
+        fn arbitrary(_: &mut Unstructured<'a>) -> Result<Self> {
+            unimplemented!()
+        }
+    }
+
+    assert_eq!(SizeHint::UNKNOWN, size_hint::get::<Example>());
 }

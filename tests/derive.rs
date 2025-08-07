@@ -27,7 +27,7 @@ fn struct_with_named_fields() {
     assert_eq!(rgb.g, 5);
     assert_eq!(rgb.b, 6);
 
-    assert_eq!((3, Some(3)), <Rgb as Arbitrary>::size_hint(0));
+    assert_eq!(SizeHint::exactly(3), size_hint::get::<Rgb>());
 }
 
 #[derive(Copy, Clone, Debug, Arbitrary)]
@@ -43,7 +43,7 @@ fn tuple_struct() {
     assert_eq!(s.0, 42);
     assert_eq!(s.1, true);
 
-    assert_eq!((2, Some(2)), <MyTupleStruct as Arbitrary>::size_hint(0));
+    assert_eq!(SizeHint::exactly(2), size_hint::get::<MyTupleStruct>());
 }
 
 #[derive(Clone, Debug, Arbitrary)]
@@ -116,7 +116,7 @@ fn derive_enum() {
     assert!(saw_tuple);
     assert!(saw_struct);
 
-    assert_eq!((4, Some(17)), <MyEnum as Arbitrary>::size_hint(0));
+    assert_eq!(SizeHint::from(4..=17), size_hint::get::<MyEnum>());
 }
 
 // This should result in a compiler-error:
@@ -213,28 +213,36 @@ struct WideRecursiveMixedStruct {
 #[test]
 fn recursive() {
     let raw = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+    // These should all succeed without recursing infinitely.
     let _rec: RecursiveTree = arbitrary_from(&raw);
     let _rec: WideRecursiveStruct = arbitrary_from(&raw);
     let _rec: WideRecursiveEnum = arbitrary_from(&raw);
     let _rec: WideRecursiveMixedStruct = arbitrary_from(&raw);
     let _rec: WideRecursiveMixedEnum = arbitrary_from(&raw);
 
-    assert_eq!((0, None), <WideRecursiveStruct as Arbitrary>::size_hint(0));
-    assert_eq!((0, None), <WideRecursiveEnum as Arbitrary>::size_hint(0));
+    // These should all report unbounded (meaning the size is effectively unbounded).
     assert_eq!(
-        (0, None),
-        <WideRecursiveMixedStruct as Arbitrary>::size_hint(0)
+        size_hint::get::<WideRecursiveStruct>(),
+        // The actual minimum is 10, but in practice we run out of fuel handling the first branch
+        // so only determine that at least 1 byte is needed.
+        SizeHint::at_least(1) + SizeHint::OUT_OF_FUEL
     );
     assert_eq!(
-        (0, None),
-        <WideRecursiveMixedEnum as Arbitrary>::size_hint(0)
+        size_hint::get::<WideRecursiveEnum>(),
+        // Enums use 4 bytes because derive(Arbitrary) uses u32 to generate enum discriminants.
+        SizeHint::at_least(4) + SizeHint::OUT_OF_FUEL
     );
-
-    let (lower, upper) = <RecursiveTree as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 0, "Cannot compute size hint of recursive structure");
-    assert!(
-        upper.is_none(),
-        "potentially infinitely recursive, so no upper bound"
+    assert_eq!(
+        size_hint::get::<WideRecursiveMixedStruct>(),
+        SizeHint::at_least(1) + SizeHint::OUT_OF_FUEL
+    );
+    assert_eq!(
+        size_hint::get::<WideRecursiveMixedEnum>(),
+        SizeHint::at_least(4) + SizeHint::OUT_OF_FUEL
+    );
+    assert_eq!(
+        size_hint::get::<RecursiveTree>(),
+        SizeHint::at_least(4) + SizeHint::OUT_OF_FUEL
     );
 }
 
@@ -249,9 +257,9 @@ fn generics() {
     let gen: Generic<bool> = arbitrary_from(&raw);
     assert!(gen.inner);
 
-    let (lower, upper) = <Generic<u32> as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 4);
-    assert_eq!(upper, Some(4));
+    let size_hint = size_hint::get::<Generic<u32>>();
+    assert_eq!(size_hint.lower_bound(), 4);
+    assert_eq!(size_hint.upper_bound(), Some(4));
 }
 
 #[derive(Arbitrary, Debug)]
@@ -266,9 +274,9 @@ fn one_lifetime() {
     let lifetime: OneLifetime = arbitrary_from(&raw);
     assert_eq!("abc", lifetime.alpha);
 
-    let (lower, upper) = <OneLifetime as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 0);
-    assert_eq!(upper, None);
+    let size_hint = size_hint::get::<OneLifetime>();
+    assert_eq!(size_hint.lower_bound(), 0);
+    assert_eq!(size_hint.upper_bound(), None);
 }
 
 #[derive(Arbitrary, Debug)]
@@ -285,9 +293,9 @@ fn two_lifetimes() {
     assert_eq!("abc", lifetime.alpha);
     assert_eq!("def", lifetime.beta);
 
-    let (lower, upper) = <TwoLifetimes as Arbitrary>::size_hint(0);
-    assert_eq!(lower, 0);
-    assert_eq!(upper, None);
+    let size_hint = size_hint::get::<TwoLifetimes>();
+    assert_eq!(size_hint.lower_bound(), 0);
+    assert_eq!(size_hint.upper_bound(), None);
 }
 
 #[test]

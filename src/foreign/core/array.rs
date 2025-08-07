@@ -1,7 +1,6 @@
 use {
     crate::{size_hint, Arbitrary, Result, Unstructured},
     core::{
-        array,
         mem::{self, MaybeUninit},
         ptr,
     },
@@ -64,13 +63,7 @@ where
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        Self::try_size_hint(depth).unwrap_or_default()
-    }
-
-    #[inline]
-    fn try_size_hint(depth: usize) -> Result<(usize, Option<usize>), crate::MaxRecursionReached> {
-        let hint = <T as Arbitrary>::try_size_hint(depth)?;
-        Ok(size_hint::and_all(&array::from_fn::<_, N, _>(|_| hint)))
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        context.get::<T>().repeat(N)
     }
 }

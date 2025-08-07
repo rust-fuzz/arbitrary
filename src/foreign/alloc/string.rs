@@ -1,5 +1,5 @@
 use {
-    crate::{Arbitrary, Result, Unstructured},
+    crate::{size_hint, Arbitrary, Result, Unstructured},
     std::string::String,
 };
 
@@ -13,7 +13,7 @@ impl<'a> Arbitrary<'a> for String {
     }
 
     #[inline]
-    fn size_hint(depth: usize) -> (usize, Option<usize>) {
-        <&str as Arbitrary>::size_hint(depth)
+    fn size_hint(context: &size_hint::Context) -> size_hint::SizeHint {
+        <&str as Arbitrary>::size_hint(context)
     }
 }
