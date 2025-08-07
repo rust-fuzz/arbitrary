@@ -60,7 +60,9 @@ fn expand_derive_arbitrary(input: syn::DeriveInput) -> Result<TokenStream> {
         const _: () = {
             ::std::thread_local! {
                 #[allow(non_upper_case_globals)]
-                static #recursive_count: ::core::cell::Cell<u32> = ::core::cell::Cell::new(0);
+                static #recursive_count: ::core::cell::Cell<u32> = const {
+                    ::core::cell::Cell::new(0)
+                };
             }
 
             #[automatically_derived]
