@@ -423,7 +423,7 @@ fn gen_size_hint_method(input: &DeriveInput) -> Result<TokenStream> {
                     #[inline]
                     fn try_size_hint(depth: usize) -> ::core::result::Result<(usize, ::core::option::Option<usize>), arbitrary::MaxRecursionReached> {
                         Ok(arbitrary::size_hint::and(
-                            <u32 as arbitrary::Arbitrary>::try_size_hint(depth)?,
+                            <u32 as arbitrary::Arbitrary>::size_hint(depth),
                             arbitrary::size_hint::try_recursion_guard(depth, |depth| {
                                 Ok(arbitrary::size_hint::or_all(&[ #( #variants? ),* ]))
                             })?,
