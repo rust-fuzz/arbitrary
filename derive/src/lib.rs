@@ -149,10 +149,7 @@ fn add_trait_bounds(mut generics: Generics, lifetime: LifetimeParam) -> Generics
     generics
 }
 
-fn with_recursive_count_guard(
-    recursive_count: &syn::Ident,
-    expr: impl quote::ToTokens,
-) -> impl quote::ToTokens {
+fn with_recursive_count_guard(recursive_count: &syn::Ident, expr: TokenStream) -> TokenStream {
     quote! {
         let guard_against_recursion = u.is_empty();
         if guard_against_recursion {
@@ -219,7 +216,7 @@ fn gen_arbitrary_method(
         recursive_count: &syn::Ident,
         unstructured: TokenStream,
         variants: &[TokenStream],
-    ) -> impl quote::ToTokens {
+    ) -> TokenStream {
         let count = variants.len() as u64;
         with_recursive_count_guard(
             recursive_count,
