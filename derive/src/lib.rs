@@ -158,31 +158,6 @@ fn add_trait_bounds(mut generics: Generics, lifetime: LifetimeParam) -> Generics
     generics
 }
 
-fn with_recursive_count_guard(recursive_count: &syn::Ident, expr: TokenStream) -> TokenStream {
-    quote! {
-        let guard_against_recursion = u.is_empty();
-        if guard_against_recursion {
-            #recursive_count.with(|count| {
-                if count.get() > 0 {
-                    return Err(arbitrary::Error::NotEnoughData);
-                }
-                count.set(count.get() + 1);
-                Ok(())
-            })?;
-        }
-
-        let result = (|| { #expr })();
-
-        if guard_against_recursion {
-            #recursive_count.with(|count| {
-                count.set(count.get() - 1);
-            });
-        }
-
-        result
-    }
-}
-
 fn gen_arbitrary_method(
     input: &DeriveInput,
     lifetime: LifetimeParam,
@@ -195,11 +170,18 @@ fn gen_arbitrary_method(
         recursive_count: &syn::Ident,
     ) -> Result<TokenStream> {
         let arbitrary = construct(fields, |_idx, field| gen_constructor_for_field(field))?;
-        let body = with_recursive_count_guard(recursive_count, quote! { Ok(#ident #arbitrary) });
+        let body = quote! {
+            arbitrary::details::with_recursive_count(u, &#recursive_count, |mut u| {
+                Ok(#ident #arbitrary)
+            })
+        };
 
         let arbitrary_take_rest = construct_take_rest(fields)?;
-        let take_rest_body =
-            with_recursive_count_guard(recursive_count, quote! { Ok(#ident #arbitrary_take_rest) });
+        let take_rest_body = quote! {
+            arbitrary::details::with_recursive_count(u, &#recursive_count, |mut u| {
+                Ok(#ident #arbitrary_take_rest)
+            })
+        };
 
         Ok(quote! {
             fn arbitrary(u: &mut arbitrary::Unstructured<#lifetime>) -> arbitrary::Result<Self> {
@@ -243,7 +225,11 @@ fn gen_arbitrary_method(
         };
 
         if needs_recursive_count {
-            with_recursive_count_guard(recursive_count, do_variants)
+            quote! {
+                arbitrary::details::with_recursive_count(u, &#recursive_count, |mut u| {
+                    #do_variants
+                })
+            }
         } else {
             do_variants
         }
