@@ -1,8 +1,8 @@
 #![no_main]
 
 use arbitrary::{unstructured::Int, Arbitrary, Result, Unstructured};
+use core::{fmt::Display, ops::RangeInclusive};
 use libfuzzer_sys::fuzz_target;
-use std::{fmt::Display, ops::RangeInclusive};
 
 fuzz_target!(|data: &[u8]| {
     fuzz(data).expect("`int_in_range` should never return an error");

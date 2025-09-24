@@ -1,6 +1,6 @@
 use {
     crate::{size_hint, Arbitrary, Result, Unstructured},
-    std::boxed::Box,
+    alloc::boxed::Box,
 };
 
 impl<'a, A> Arbitrary<'a> for Box<A>

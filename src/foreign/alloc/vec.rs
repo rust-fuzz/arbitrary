@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::vec::Vec,
+    alloc::vec::Vec,
 };
 
 impl<'a, A> Arbitrary<'a> for Vec<A>

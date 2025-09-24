@@ -1,6 +1,6 @@
 use {
     crate::{size_hint, Arbitrary, Result, Unstructured},
-    std::borrow::{Cow, ToOwned},
+    alloc::borrow::{Cow, ToOwned},
 };
 
 impl<'a, A> Arbitrary<'a> for Cow<'a, A>
