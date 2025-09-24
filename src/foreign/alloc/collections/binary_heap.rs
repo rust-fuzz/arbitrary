@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::collections::binary_heap::BinaryHeap,
+    alloc::collections::binary_heap::BinaryHeap,
 };
 
 impl<'a, A> Arbitrary<'a> for BinaryHeap<A>
