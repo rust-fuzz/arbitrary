@@ -23,7 +23,7 @@
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
 
-#[cfg(any(feature = "alloc", test))]
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod error;
@@ -80,7 +80,7 @@ impl core::error::Error for MaxRecursionReached {}
 /// ```
 /// # #[cfg(feature = "derive")] mod foo {
 /// use arbitrary::Arbitrary;
-/// use alloc::collections::HashSet;
+/// use std::collections::HashSet;
 ///
 /// #[derive(Arbitrary)]
 /// pub struct AddressBook {
