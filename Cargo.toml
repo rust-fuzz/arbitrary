@@ -2,12 +2,12 @@
 name = "arbitrary"
 version = "1.4.2" # Make sure this matches the derive crate version (not including the patch version)
 authors = [
-    "The Rust-Fuzz Project Developers",
-    "Nick Fitzgerald <fitzgen@gmail.com>",
-    "Manish Goregaokar <manishsmail@gmail.com>",
-    "Simonas Kazlauskas <arbitrary@kazlauskas.me>",
-    "Brian L. Troutwine <brian@troutwine.us>",
-    "Corey Farwell <coreyf@rwell.org>",
+  "The Rust-Fuzz Project Developers",
+  "Nick Fitzgerald <fitzgen@gmail.com>",
+  "Manish Goregaokar <manishsmail@gmail.com>",
+  "Simonas Kazlauskas <arbitrary@kazlauskas.me>",
+  "Brian L. Troutwine <brian@troutwine.us>",
+  "Corey Farwell <coreyf@rwell.org>",
 ]
 categories = ["development-tools::testing"]
 edition = "2021"
@@ -24,7 +24,10 @@ derive_arbitrary = { version = "~1.4.0", path = "./derive", optional = true }
 
 [features]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
+default = ["std"]
 derive = ["derive_arbitrary"]
+std = ["alloc"]
+alloc = []
 
 [[example]]
 name = "derive_enum"

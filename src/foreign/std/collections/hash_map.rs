@@ -1,9 +1,7 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::{
-        collections::hash_map::HashMap,
-        hash::{BuildHasher, Hash},
-    },
+    core::hash::{BuildHasher, Hash},
+    std::collections::hash_map::HashMap,
 };
 
 impl<'a, K, V, S> Arbitrary<'a> for HashMap<K, V, S>

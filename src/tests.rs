@@ -1,6 +1,9 @@
+#[cfg(feature = "alloc")]
+use alloc::{rc::Rc, string::String, sync::Arc, vec::Vec};
 use {
     super::{Arbitrary, Result, Unstructured},
-    std::{collections::HashSet, fmt::Debug, hash::Hash, rc::Rc, sync::Arc},
+    core::{fmt::Debug, hash::Hash},
+    std::collections::HashSet,
 };
 
 /// Assert that the given expected values are all generated.
@@ -154,6 +157,7 @@ fn arbitrary_take_rest_for_bytes() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn arbitrary_for_vec_u8() {
     assert_generates::<Vec<u8>>([
         vec![],
@@ -175,6 +179,7 @@ fn arbitrary_for_vec_u8() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn arbitrary_for_vec_vec_u8() {
     assert_generates::<Vec<Vec<u8>>>([
         vec![],
@@ -193,6 +198,7 @@ fn arbitrary_for_vec_vec_u8() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn arbitrary_for_vec_vec_vec_u8() {
     assert_generates::<Vec<Vec<Vec<u8>>>>([
         vec![],
@@ -217,11 +223,13 @@ fn arbitrary_for_vec_vec_vec_u8() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn arbitrary_for_string() {
     assert_generates::<String>(["".into(), "a".into(), "aa".into(), "aaa".into()]);
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn arbitrary_collection() {
     let x = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 12,
@@ -257,6 +265,7 @@ fn arbitrary_collection() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn arbitrary_take_rest() {
     // Basic examples
     let x = [1, 2, 3, 4];
@@ -307,6 +316,7 @@ fn arbitrary_take_rest() {
 }
 
 #[test]
+#[cfg(feature = "alloc")]
 fn size_hint_for_tuples() {
     assert_eq!(
         (7, Some(7)),
