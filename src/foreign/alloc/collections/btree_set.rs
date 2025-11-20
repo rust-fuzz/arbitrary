@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::collections::btree_set::BTreeSet,
+    alloc::collections::btree_set::BTreeSet,
 };
 
 impl<'a, A> Arbitrary<'a> for BTreeSet<A>

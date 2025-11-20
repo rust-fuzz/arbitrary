@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::ffi::CString,
+    alloc::{ffi::CString, vec::Vec},
 };
 
 impl<'a> Arbitrary<'a> for CString {
