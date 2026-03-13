@@ -30,9 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - run: rustup toolchain add 1.63
+    - run: rustup toolchain add 1.68
     - name: Build
-      run: cargo +1.63 check --lib --all-features
+      run: cargo +1.68 check --lib --all-features
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
