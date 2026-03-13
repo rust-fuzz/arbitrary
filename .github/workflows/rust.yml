@@ -31,6 +31,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: rustup toolchain add 1.63
+    - name: Downgrade unicode-ident
+      run: cargo update --package unicode-ident --precise 1.0.22
+    - name: Downgrade syn
+      run: cargo update --package syn --precise 2.0.106
+    - name: Downgrade quote
+      run: cargo update --package quote --precise 1.0.41
+    - name: Downgrade proc-macro2
+      run: cargo update --package proc-macro2 --precise 1.0.103
     - name: Build
       run: cargo +1.63 check --lib --all-features
   clippy:
