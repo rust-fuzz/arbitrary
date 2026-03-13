@@ -53,6 +53,10 @@ impl core::fmt::Display for MaxRecursionReached {
     }
 }
 
+#[rustversion::before(1.81)]
+impl std::error::Error for MaxRecursionReached {}
+
+#[rustversion::since(1.81)]
 impl core::error::Error for MaxRecursionReached {}
 
 /// Generate arbitrary structured values from raw, unstructured data.

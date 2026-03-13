@@ -1,4 +1,10 @@
-use core::{error, fmt};
+use core::fmt;
+
+#[rustversion::before(1.81)]
+use std::error;
+
+#[rustversion::since(1.81)]
+use core::error;
 
 /// An enumeration of buffer creation errors
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
