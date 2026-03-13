@@ -22,6 +22,7 @@ include = ["Cargo.toml", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE", "READM
 
 [dependencies]
 derive_arbitrary = { version = "~1.4.0", path = "./derive", optional = true }
+rustversion = "1"
 
 [features]
 default = ["std"]
