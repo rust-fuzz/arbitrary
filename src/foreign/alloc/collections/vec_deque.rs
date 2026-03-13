@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::collections::vec_deque::VecDeque,
+    alloc::collections::vec_deque::VecDeque,
 };
 
 impl<'a, A> Arbitrary<'a> for VecDeque<A>
