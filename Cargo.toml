@@ -21,7 +21,7 @@ rust-version = "1.63.0" # Keep in sync with version documented in the README.md
 include = ["Cargo.toml", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE", "README.md", "src/**/*.rs", "tests/**/*.rs", "examples/**/*.rs"]
 
 [dependencies]
-derive_arbitrary = { version = "~1.4.0", path = "./derive", optional = true }
+derive_arbitrary = { version = "~1.4.1", path = "./derive", optional = true }
 
 [features]
 # Turn this feature on to enable support for `#[derive(Arbitrary)]`.
