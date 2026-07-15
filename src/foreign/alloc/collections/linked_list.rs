@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::collections::linked_list::LinkedList,
+    alloc::collections::linked_list::LinkedList,
 };
 
 impl<'a, A> Arbitrary<'a> for LinkedList<A>
