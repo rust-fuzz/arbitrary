@@ -8,7 +8,8 @@ Released YYYY-MM-DD.
 
 ### Changed
 
-* TODO (or remove section if none)
+* Updated `derive_arbitrary` to `syn` 3. This raises the MSRV from 1.63.0 to
+  1.71.0, which is the MSRV of `syn` 3.
 
 ### Deprecated
 
