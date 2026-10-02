@@ -1,6 +1,6 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::string::String,
+    alloc::string::String,
 };
 
 impl<'a> Arbitrary<'a> for String {

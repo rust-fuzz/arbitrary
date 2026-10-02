@@ -1,6 +1,6 @@
 use {
     crate::{size_hint, Arbitrary, Result, Unstructured},
-    std::rc::Rc,
+    alloc::rc::Rc,
 };
 
 impl<'a, A> Arbitrary<'a> for Rc<A>

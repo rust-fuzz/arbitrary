@@ -1,6 +1,10 @@
+#[rustversion::since(1.64)]
+use alloc::ffi::CString;
+#[rustversion::before(1.64)]
+use std::ffi::CString;
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::ffi::CString,
+    alloc::vec::Vec,
 };
 
 impl<'a> Arbitrary<'a> for CString {

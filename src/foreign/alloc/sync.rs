@@ -1,6 +1,6 @@
 use {
     crate::{size_hint, Arbitrary, Result, Unstructured},
-    std::sync::Arc,
+    alloc::sync::Arc,
 };
 
 impl<'a, A> Arbitrary<'a> for Arc<A>

@@ -130,6 +130,12 @@ compile with older versions but that may change in any new patch release.
 We reserve the right to increment the MSRV on minor releases, however we will
 strive to only do it deliberately and for good reasons.
 
+### Notes on no_std compatability:
+
+- When compiling for versions older than **1.81.0** the `std` feature must be enabled.
+- When compiling for versions older than **1.64.0** the `impl` for `CString` is not available
+  with the `no_std` feature. And
+
 ## License
 
 Licensed under dual MIT or Apache-2.0 at your choice.

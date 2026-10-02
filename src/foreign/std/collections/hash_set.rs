@@ -1,9 +1,7 @@
 use {
     crate::{Arbitrary, Result, Unstructured},
-    std::{
-        collections::hash_set::HashSet,
-        hash::{BuildHasher, Hash},
-    },
+    core::hash::{BuildHasher, Hash},
+    std::collections::hash_set::HashSet,
 };
 
 impl<'a, A, S> Arbitrary<'a> for HashSet<A, S>

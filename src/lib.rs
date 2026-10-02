@@ -14,6 +14,7 @@
 //! [`Arbitrary`] trait's documentation for details on
 //! automatically deriving, implementing, and/or using the trait.
 
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![deny(bad_style)]
 #![deny(missing_docs)]
 #![deny(future_incompatible)]
@@ -21,6 +22,9 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 #![deny(unused)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 mod error;
 mod foreign;
@@ -49,7 +53,11 @@ impl core::fmt::Display for MaxRecursionReached {
     }
 }
 
+#[rustversion::before(1.81)]
 impl std::error::Error for MaxRecursionReached {}
+
+#[rustversion::since(1.81)]
+impl core::error::Error for MaxRecursionReached {}
 
 /// Generate arbitrary structured values from raw, unstructured data.
 ///
@@ -122,9 +130,9 @@ impl std::error::Error for MaxRecursionReached {}
 ///
 /// ```
 /// # #[cfg(feature = "derive")] mod foo {
-/// # pub struct MyCollection<T> { _t: std::marker::PhantomData<T> }
+/// # pub struct MyCollection<T> { _t: core::marker::PhantomData<T> }
 /// # impl<T> MyCollection<T> {
-/// #     pub fn new() -> Self { MyCollection { _t: std::marker::PhantomData } }
+/// #     pub fn new() -> Self { MyCollection { _t: core::marker::PhantomData } }
 /// #     pub fn insert(&mut self, element: T) {}
 /// # }
 /// use arbitrary::{Arbitrary, Result, Unstructured};
@@ -554,7 +562,7 @@ pub struct CompileFailTests;
 
 // Support for `#[derive(Arbitrary)]`.
 #[doc(hidden)]
-#[cfg(feature = "derive")]
+#[cfg(all(feature = "derive", feature = "std"))]
 pub mod details {
     use super::*;
 
