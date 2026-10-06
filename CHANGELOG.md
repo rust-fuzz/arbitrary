@@ -8,8 +8,7 @@ Released YYYY-MM-DD.
 
 ### Changed
 
-* Updated `derive_arbitrary` to `syn` 3. This raises the MSRV from 1.63.0 to
-  1.71.0, which is the MSRV of `syn` 3.
+* TODO (or remove section if none)
 
 ### Deprecated
 
@@ -26,6 +25,27 @@ Released YYYY-MM-DD.
 ### Security
 
 * TODO (or remove section if none)
+
+--------------------------------------------------------------------------------
+
+## 1.5.0
+
+Released 2026-10-05.
+
+### Added
+
+* Added support for deriving `Arbitrary` for types with raw identifiers.
+
+### Changed
+
+* Updated `derive_arbitrary` to `syn` 3. This raises the MSRV from 1.63.0 to
+  1.71.0, which is the MSRV of `syn` 3.
+
+### Fixed
+
+* Fixed soundness when generating arrays.
+* Fixed nonzero integer generation to always produce a nonzero value.
+* Updated `derive_arbitrary` to include fixes for fully qualified paths.
 
 --------------------------------------------------------------------------------
 
